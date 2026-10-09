@@ -114,7 +114,9 @@ whether things are working:
 
 ### A preview image in the sliced file
 
-Two ways to do it, from issue 3:
+**The owner wants this in a future version.** The test print ran fine without one, so the
+missing preview is not a blocker, but the printer's screen should show the part. Two ways to
+do it, from issue 3:
 
 1. Render a small picture of the placed part on the server and add it to the archive, the
    way Bambu's own slicer writes `Metadata/plate_1.png`. Which image names and sizes the H2S
