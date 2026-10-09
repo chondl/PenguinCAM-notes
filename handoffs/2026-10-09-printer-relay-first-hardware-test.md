@@ -129,6 +129,12 @@ Points to settle in the design:
   clock when it uploads.
 - The start check (issue 1) finds the job by name, so the name must stay unique per job
   and predictable to the daemon. The job id, or something equally unique, stays in it.
+- **Ideally, also who started the print.** The backend already knows the Onshape user from
+  the session (the app asks Onshape for `OAuth2ReadPII`), so the job can carry it. Where it
+  shows is a design choice: in the file name, which every student at the printer sees, or
+  only in the relay's job record and the daemon telemetry. Students' names on a shared
+  school printer are personal data, so a first name or an Onshape user name may be the
+  limit.
 - The H2S's screen shows only so many characters, and the printer's file system and FTPS
   may restrict characters. Both limits need checking on the printer.
 
