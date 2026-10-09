@@ -3,8 +3,8 @@
 Sub-project 1 of milestone 1 in the [3D printing roadmap](../plans/2026-10-09-print-roadmap.md).
 Brainstormed with the owner on Fri 10-09, then reviewed adversarially twice: once against
 Onshape's documentation, its published OpenAPI and experiments in the container, and once
-against the code on `feature/printer-relay`. Revised the same day for the owner's answers:
-print path only, the Education plan, and approval to drive Onshape's interface.
+against the code on `feature/printer-relay`. Revised the same day for the owner's answers (print path only, the Education plan, approval
+to drive Onshape's interface) and for two adversarial reviews of the implementation plan.
 
 ## 0. Read this first: three facts that shape the design
 
@@ -67,7 +67,7 @@ Playwright) confirmed how to pass each one without loosening any of them:
 
 The fake Onshape host is therefore served to the test browser at
 `https://cad-testbed.onshape.com`, with the browser's requests for that host answered
-locally, and the test browser grants that origin the Local Network Access permission
+locally, and the test browser grants that origin Chrome's local network permissions
 (section 5.4). The production checks stay exactly as they are, so a test that passes in
 the test bed has passed the real checks.
 
@@ -97,7 +97,7 @@ Success looks like this:
 
 - Test documents built by script in a folder of the owner's account.
 - Recording and replaying Onshape API traffic and panel messages.
-- A fake Onshape API and a fake Onshape host.
+- A replay adapter and a fake Onshape host.
 - A development-only sign-in for the panel that uses the API keys.
 - Scenarios for the print path: loading the panel, switching to 3D Printing, selecting
   parts, and exporting them as 3D files.
@@ -114,7 +114,7 @@ Success looks like this:
 - The printer and the daemon. Milestone 2 has its own test bed.
 - Recording real teams' traffic from production. Recordings come only from the owner's test
   documents.
-- Fixing bugs the test bed finds in existing code. They are reported (section 11) and fixed
+- Fixing bugs the test bed finds in existing code. They are reported (section 12) and fixed
   in the sub-project that touches that code.
 
 ## 3. Terms
@@ -124,7 +124,7 @@ Each term below means one thing everywhere in this spec.
 | Term | Meaning |
 |---|---|
 | **test bed** | Everything in this spec: test documents, recordings, fakes, scenarios and tools. |
-| **development server** | PenguinCAM's Flask server started locally on port 6238, as in the workspace instructions. |
+| **development server** | PenguinCAM's Flask server started locally: on port 6238 in record mode, as in the workspace instructions; on port 6240 when a browser scenario starts one in replay mode. |
 | **panel** | PenguinCAM inside Onshape's right panel: `/onshape-panel` first, and the print wizard (`/print`) once 3D Printing is chosen. |
 | **test folder** | The folder "PenguinCAM test bed" in the owner's Onshape account. |
 | **test documents** | The Onshape documents the test bed builds in the test folder. |
@@ -134,14 +134,14 @@ Each term below means one thing everywhere in this spec.
 | **cassette** | The saved API traffic of one scenario: one file of request and response pairs. |
 | **message log** | The saved panel messages of one scenario, in both directions. |
 | **recorder** | The transport adapter that saves API traffic in record mode. |
-| **replay adapter** | The transport adapter that answers API calls from cassettes, inside the process. |
-| **fake Onshape API** | The local HTTP server that answers the development server's API calls from cassettes. |
+| **replay adapter** | The transport adapter that answers API calls from cassettes, inside the process, in tests and in the development server alike. |
+| **current scenario** | The one scenario a process is recording or replaying at a time. |
 | **fake Onshape host** | The page at `https://cad-testbed.onshape.com` that embeds the panel the way Onshape does and plays Onshape's side of the panel messages from message logs. |
 | **development sign-in** | Signing the panel in with the API keys instead of OAuth, development only. |
 | **live API check** | Running the API side of every scenario in record mode with the API keys, unattended. |
 | **automated Onshape UI run** | Playwright in real Chrome logging in to Onshape as the owner and running the scenarios in the panel inside real Onshape, in record mode. |
 | **Onshape checkpoint** | The owner running the same scenarios by hand in Chrome while PenguinCAM records; the fallback for the automated Onshape UI run. |
-| **checklist strip** | The bar at the top of the panel, shown only in record mode, that offers each scenario's steps. |
+| **checklist strip** | The bar at the top of the print page, shown whenever the test bed is on, that offers the scenarios and each scenario's steps. |
 | **drift report** | The differences between a fresh recording and the stored one. |
 | **call ledger** | The local record of every live call the test bed made, used to enforce the budget. |
 
@@ -151,10 +151,10 @@ Each term below means one thing everywhere in this spec.
 flowchart TB
     subgraph replay["Replay mode"]
         host["fake Onshape host<br/>cad-testbed.onshape.com"]
-        p1["panel<br/>localhost:6238"]
+        p1["panel<br/>localhost:6240"]
         host <-->|"messages"| p1
         p1 --> s1["development server"]
-        s1 --> fakeapi["fake Onshape API"]
+        s1 --> fakeapi["replay adapter"]
     end
     subgraph record["Record mode"]
         onshape["real Onshape<br/>in Chrome"]
@@ -172,7 +172,7 @@ flowchart TB
 
 In record mode the panel runs inside real Onshape, driven by the automated Onshape UI run
 or by the owner, and both sides of its traffic are saved. In replay mode the fake Onshape
-host and the fake Onshape API play that traffic back to the same panel code.
+host and the replay adapter play that traffic back to the same panel code.
 
 ## 5. Components
 
@@ -195,19 +195,24 @@ API, one `POST …/features` per sketch or extrude:
   documentation describes only as the document's parent. The first build task checks that
   passing the test folder's id puts the document in the folder. If it does not, the
   automated Onshape UI run moves them once.
-- **Units.** No API endpoint sets a document's units. The features use inch expressions
-  (`"2 in"`), and the first automated Onshape UI run switches `tb-inch`'s document units to
-  inches in Onshape's interface. Both matter: the geometry tests conversion, and the
+- **Geometry.** Sketch geometry takes plain numbers in metres; only quantities such as an
+  extrude's depth take expressions with units (`"0.5 in"`). Where Onshape's `cube` feature
+  gives the same shape, it is the cheaper choice.
+- **Units.** No API endpoint sets a document's units. `tb-inch` is dimensioned in inches,
+  and the first automated Onshape UI run switches its document units to inches in Onshape's
+  interface. Both matter: the geometry tests conversion, and the
   document setting tests whatever reads it.
 - **Rules for writing.** Before every write the tool checks that the target is a test
   document: it is listed in the test folder, its name starts with `tb-`, and its description
   reads `created by PenguinCAM test bed`. It never deletes a document without all three.
   The automated Onshape UI run follows the same rule.
-- **Re-running is safe.** It lists the folder, keeps documents that already exist, and
-  builds only what is missing. `--rebuild NAME` deletes and rebuilds one document.
-- **Cost.** A full build is about 25 to 30 counted calls (estimate: two or three per simple
-  part, about five for the two-part document and for the assembly, one folder listing),
-  more if each step is read back to confirm it.
+- **Re-running is safe.** It lists the folder (`GET /documents?parentId=<folder>`), keeps
+  documents that already exist, and builds only what is missing. It also saves a version of
+  `tb-box` (`POST /documents/d/{did}/versions`), which `part-export` exports from. `--rebuild NAME` deletes and rebuilds one document.
+- **Cost.** A full build is about 30 to 40 counted calls (estimate: creating each document,
+  listing its elements, two or three features per simple part, about five for the two-part
+  document, five or six for the assembly, one version, one folder listing), more if each
+  step is read back to confirm it.
 - The ids go into `testbed/documents.json`, which the scenarios read.
 - If the features endpoint makes a shape needlessly hard, a simpler shape with the same
   purpose is acceptable. The table's last column is the requirement.
@@ -216,96 +221,131 @@ API, one `POST …/features` per sketch or extrude:
 
 `OnshapeClient` builds a new `requests.Session` for every client, and the server builds a
 new client for every request (`session_manager.get_client`, `from_api_keys`). So the test
-bed installs its adapters in `OnshapeClient.__init__`, behind the test bed setting (section
-5.6), rather than mounting anything once. Both the recorder and the replay adapter subclass
-`HTTPAdapter` and carry the same `Retry` configuration the client mounts today, so retry
-behaviour is unchanged.
+bed installs its transport adapter in `OnshapeClient.__init__`, behind the test bed setting
+(section 5.6), rather than mounting anything once. The adapter subclasses `HTTPAdapter` and
+carries the client's existing `Retry` configuration.
 
-In record mode the recorder writes each exchange to the scenario's cassette: method, path,
-query, request body, status, selected response headers (`X-Rate-Limit-Remaining`,
-`Location`, `Content-Type`), and response body. Each hop of a redirect is its own exchange.
-Binary bodies (STL and other exported files) are stored as files next to the cassette.
-Every exchange is also counted in the call ledger (section 7).
+**The current scenario** is one value per process, held by the test bed behind a lock. In
+the development server it is set by `POST /testbed/scenario`: the checklist strip calls it
+in record mode, and the browser runner calls it in replay mode. Command-line runs set it
+directly. Each request thread reads it when its client is built, so every Onshape call in
+the server is filed under the scenario that is current.
+
+In record mode the recorder buffers each exchange in memory: host, full path, query,
+request body, status, selected response headers (`X-Rate-Limit-Remaining`, `Location`,
+`Content-Type`), and response body. `requests` sends each hop of a redirect through the
+adapter separately, so each hop is its own exchange. Binary bodies (STL and other exported
+files) are stored as files next to the cassette. When the scenario ends (Done in the
+checklist strip, or the end of a command-line run), the buffer is scrubbed and written to
+`testbed/.fresh/`, where the drift report reads it (section 5.8).
+
+Every exchange is counted in the call ledger (section 7). A retry inside urllib3 never
+reaches the adapter, so the test bed's `Retry` subclass also records each retry attempt in
+the ledger.
 
 Scrubbing happens before anything reaches disk, because the repository is public:
 
 - **Removed:** `Authorization` headers in both their bearer and Basic forms, cookies, OAuth
-  tokens, API keys, and the query string of any redirect target outside the Onshape API
-  host (a signed storage URL, if Onshape uses one).
-- **Replaced with fixed stand-ins, in requests and responses alike:** the owner's name,
-  email address and user id, the ids of the owner's companies and classrooms, and any
-  `href` that embeds one of them. The same stand-in is used in both directions, so a
-  request that carries a company id still matches its recording in replay mode.
-- **Replaced with a fixture:** the body of any `PenguinCAM-config.yaml` fetched from the
-  owner's classroom, because it can hold a printer pairing code. The fixture is
-  `testbed/fixtures/PenguinCAM-config.yaml`.
+  tokens, API keys, and the query string of any redirect target outside `*.onshape.com`.
+- **Replaced with fixed stand-ins, in requests and responses alike:**
+  - the owner's name, email address and user id;
+  - the ids of the owner's companies and classrooms;
+  - any `href` that embeds one of them.
+
+  The same stand-in is used in both directions, so a request that carries a company id still
+  matches its recording in replay mode. The values to replace are learned when a recording
+  starts. The recorder fetches `/users/sessioninfo` and `/companies` once, with the same
+  client, before the scenario's first call, and counts those calls in the ledger.
+- **Replaced with a fixture:** the body of every `/blobelements/` download. That is how
+  `fetch_config_file` reads the classroom's `PenguinCAM-config.yaml`, which can hold a
+  printer pairing code. The fixture is `testbed/fixtures/team-config-fixture.yaml`. The
+  repository's `.gitignore` ignores files named `PenguinCAM-config.yaml`, hence the different
+  name.
 - **Kept:** document, workspace, element and part ids of the test documents. They are not
   secret, and nothing can reach those documents without the owner's credentials.
-- **Checked:** a scrub test fails the build if a cassette or message log contains the API
-  key's value, its Basic-auth encoding, the password, anything shaped like a token or an
-  email address, or the owner's user id.
+- **Checked:** a scrub test fails the build if a cassette or message log contains:
+  - the API key's value or its Basic-auth encoding;
+  - the password;
+  - anything shaped like a token or an email address;
+  - the owner's user id.
+
+  It names the file and line.
 
 The OAuth token exchange (`exchange_code_for_token`, `refresh_access_token`) calls
 `requests.post` directly, so the recorder does not see it. That is acceptable: those
-responses are secrets that must not be recorded, and replay mode uses development sign-in
-instead.
+responses are secrets that must not be recorded. Replay mode uses development sign-in
+instead, so the OAuth callback's own `sessioninfo` call is never replayed, and a cassette
+recorded through OAuth may hold calls that replay never makes. Drift comparison ignores
+calls that appear in only one of the two recordings when they come from sign-in.
 
-### 5.3 Fake Onshape API
+### 5.3 Replay
 
-Two forms, both answering from cassettes:
+In replay mode the same place in `OnshapeClient.__init__` installs the replay adapter
+instead. It answers every request, on any host, from the current scenario's cassette, so no
+request can leave the machine. This one mechanism serves the unit tests, the route tests and
+the development server that the browser scenarios load.
 
-- **The replay adapter**, for unit and route tests: no server, no network.
-- **The fake Onshape API**, for browser runs: a local HTTP server on port 6239 serving the
-  `/api/v13` prefix. The development server sends API calls to it when
-  `ONSHAPE_API_BASE` is set, which is read only when the test bed is on. It replaces only
-  `API_BASE`. `BASE_URL` is left alone: it serves the OAuth token calls and a link in the
-  UI, which replay mode never uses, and the environment variable `BASE_URL` already means
-  PenguinCAM's own address.
+Matching: a request matches on method, host, full path, and query and body with volatile
+fields removed (timestamps, and microversion ids where the scenario says they vary). A
+recorded exchange is answered once. When all of a request's recorded answers are used up,
+the last one is repeated, so a panel reload or a repeated status call still gets an answer.
+Status polls of an asynchronous translation are the exception: they replay in recorded
+order. Replay skips any wait between polls.
 
-Matching: a request matches on method, path, and query and body with volatile fields
-removed (timestamps, and microversion ids where the scenario says they vary). An unmatched
-request gets a 599 whose body names the request, and the scenario fails with "not in the
-cassette: …". It never falls through to real Onshape. 599 is not in the client's retry
-list, so it fails at once.
-
-If a part export turns out to need Onshape's asynchronous translations, replay returns the
-recorded status sequence in order and skips the wait between polls.
+An unmatched request gets HTTP 599 whose body starts `not in the cassette:` and names the
+method, host and path. The scenario fails on it. 599 is not in the client's retry list, so it
+fails at once.
 
 ### 5.4 Fake Onshape host
 
 A page served to the test browser at
 `https://cad-testbed.onshape.com/documents/<did>/…`, always on the default port. It:
 
-- embeds `/onshape-panel` from the development server in an iframe with the query
-  parameters Onshape sends (`documentId`, `workspaceId`, `elementId`, `theme`, `versionId`
-  or `microversionId` for a panel opened on a version), and
-  `server=https://cad-testbed.onshape.com`, so a stricter origin check that compares
-  against `server`, as Onshape's documentation recommends, would also pass;
+- embeds `/onshape-panel` from the development server in an iframe, with the query
+  parameters Onshape sends (`documentId`, `workspaceId`, `elementId`, `theme`; `versionId`
+  or `microversionId`, with `workspaceId` left as the raw `{$workspaceId}` placeholder, for a
+  panel opened on a version), and `server=https://cad-testbed.onshape.com`, so that a stricter
+  origin check comparing against `server`, as Onshape's documentation recommends, would also
+  pass;
 - lets the panel navigate on to `/print` inside the same iframe, as it does in Onshape;
 - receives the panel's messages and logs them;
-- answers them from the scenario's message log;
+- answers them from the scenario's message log, matching on the message's name and keys, not
+  on `messageId` (Onshape's select-dialog messages carry none). An answer to a message that
+  had a `messageId` is rewritten to carry the live one;
 - gives Playwright a small control surface: `select part <name>`, `select parts <names>`,
   `deselect`, `reload panel`.
 
 **How the browser reaches it.** The test browser intercepts requests for
-`cad-testbed.onshape.com` (Playwright request routing) and answers them from the test
-bed's server, and grants that origin Chrome's Local Network Access permission so it may
-frame `http://localhost:6238`. The experiment confirmed that this gives the page a real
-`https://cad-testbed.onshape.com` origin, passes the panel's `frame-ancestors` check,
-carries messages both ways, and keeps the panel's `SameSite=None; Secure` session cookie
-across reloads. The development server runs with `EMBED_COOKIES=1` as usual. Chrome has
-renamed the Local Network Access permission between versions, so the Playwright version is
-pinned and the first build task re-runs these checks.
+`cad-testbed.onshape.com` (Playwright request routing) and answers them itself. The name
+does not resolve in DNS, so a request that escaped the routing would fail rather than reach
+anything. The browser also grants that origin Chrome's local network permissions so it may
+frame `http://localhost`. Playwright 1.58 and later grant them under the name
+`local-network-access`. As a fallback, the harness grants Chrome's own `localNetwork` and
+`loopbackNetwork` through the browser protocol. Two experiments in the container (Chromium
+151; Playwright 1.58 and 1.63) confirmed that this:
+
+- gives the page a real `https://cad-testbed.onshape.com` origin;
+- passes the panel's `frame-ancestors` check;
+- carries messages both ways;
+- keeps the panel's `SameSite=None; Secure` session cookie across reloads.
+
+Without the grant, the frame does not load. The development server runs with
+`EMBED_COOKIES=1` as usual. The Playwright version is pinned at 1.63.0.
 
 **What it is built from.** Onshape's [right-panel message
 documentation](https://onshape-public.github.io/docs/app-dev/messages/element-right-panel/)
-covers `requestSelection` with `entityTypeSpecifier` (including `BODY`, so parts can be
-requested) and `requiredSelectionCount`, and `openSelectItemDialog` with `selectParts` and
-`selectMultiple`. It does not document `REQUESTED_SELECTION` or its `PENDING` status, which
-the existing panel code relies on. So the fake Onshape host's answers come only from message
-logs recorded in real Onshape, never from the documentation. Until the first automated
-Onshape UI run (or Onshape checkpoint) has run, it has nothing to answer with, and the
-browser scenarios are skipped.
+covers:
+
+- `requestSelection`, with `entityTypeSpecifier` (including `BODY`, so parts can be
+  requested) and `requiredSelectionCount`;
+- `openSelectItemDialog`, with `selectParts` and `selectMultiple`, which stays open until
+  `closeSelectItemDialog`.
+
+It does not document `REQUESTED_SELECTION` or its `PENDING` status, which the existing CNC
+code relies on. So the fake Onshape host's answers come only from message logs recorded in
+real Onshape, never from the documentation. Until the first automated Onshape UI run (or
+Onshape checkpoint) has run, it has nothing to answer with, and the browser scenarios are
+skipped.
 
 The fake Onshape host fakes only what the panel uses. It does not draw a model or try to
 look like Onshape.
@@ -316,28 +356,42 @@ look like Onshape.
 session's user to a stand-in (`testbed@example.invalid`) so logs and metrics read as they
 do for a real user. The keys never enter the cookie; the session holds only a flag.
 
-Three existing functions change, each only while the test bed is on:
+It exists **only in replay mode**, where the keys are placeholders and every call is
+answered from cassettes. In record mode the development server holds real API keys and
+listens on all interfaces. A sign-in route there would hand the owner's whole account to
+anything that can reach port 6238. Record mode signs in through OAuth, as Onshape does.
+
+Three existing functions change, each only in replay mode:
 
 - `session_manager.get_client` checks the flag **first** and returns
   `OnshapeClient.from_api_keys()` for such a session.
-- `session_manager.update_session_tokens`, which runs after every Onshape call, does
-  nothing for a client in API-key mode. Otherwise it would write a token record with empty
-  tokens into the cookie.
+- `session_manager.update_session_tokens`, which runs after every Onshape call, does nothing
+  for a client in API-key mode. Otherwise it would write a token record with empty tokens
+  into the cookie.
 - `/onshape/status` reports an API-key client as connected (today it tests for an access
   token).
 
-On any other server the route is not registered and the flag is ignored, so a crafted
-cookie cannot use it.
+On any other server the route is not registered and the flag is ignored, so a crafted cookie
+cannot use it.
 
 ### 5.6 Switching the test bed on
 
 One environment variable, `PENGUINCAM_TESTBED`, with values `replay` or `record`, read once
-when `frc_cam_gui_app` is imported. Production runs under gunicorn and never reaches the
-module's `__main__` block, so the guard sits at import: the module refuses to load if
-`PENGUINCAM_TESTBED` is set and the server looks deployed (`FLASK_ENV=production`,
-`RAILWAY_ENVIRONMENT` or `VERCEL` set, the same signals the app already uses to decide its
-cookie mode). When unset, none of the test bed's routes, adapters or settings are loaded,
-and the production server behaves exactly as it does today.
+when `frc_cam_gui_app` is imported, through one settings module (`testbed/settings.py`) that
+every test bed setting goes through. Production runs under gunicorn and never reaches the
+module's `__main__` block, so the guards sit at import:
+
+- The module refuses to load if `PENGUINCAM_TESTBED` is set and the server looks deployed
+  (`FLASK_ENV=production`, `RAILWAY_ENVIRONMENT` or `VERCEL` set, the same signals the app
+  already uses to decide its cookie mode).
+- In record mode it also refuses to load without `ONSHAPE_CLIENT_ID` and
+  `ONSHAPE_CLIENT_SECRET`, or with a client id starting `VKDK` (the production app's), so a
+  recording can never fall back to the production app.
+
+When unset, none of the test bed's routes, adapters or settings are loaded, and the
+production server behaves exactly as it does today. The settings module imports only the
+standard library, so importing it can never fail in a way that silently disables the
+Onshape integration.
 
 ### 5.7 Scenarios
 
@@ -353,16 +407,21 @@ expectations about the result. The first set:
 | `assembly-select` | Ask for a part in `tb-assembly` | What a selection inside an assembly identifies |
 | `part-export` | Export parts of every test document through the API, including one from a version | Export endpoints, units, versions, call counts, and whether the files slice |
 
-The two ways in the selection scenarios are `requestSelection` with
-`entityTypeSpecifier: ['BODY']`, and `openSelectItemDialog` with `selectParts` (and
-`selectMultiple`), answered by `itemSelectedInSelectItemDialog`. The panel sends neither
-today, so in record mode the checklist strip sends them. In replay mode the fake Onshape
-host replays the answers. These scenarios are stored evidence for model from Onshape and
-multiple parts, not tests of today's panel.
+The two ways in the selection scenarios are:
+
+- `requestSelection` with `entityTypeSpecifier: ['BODY']`;
+- `openSelectItemDialog` with `selectParts` (and `selectMultiple`), answered by
+  `itemSelectedInSelectItemDialog` and closed with `closeSelectItemDialog`.
+
+The print page sends neither today, so in record mode the checklist strip sends them, and in
+replay mode the fake Onshape host replays the answers. These scenarios are stored evidence
+for model from Onshape and multiple parts, not tests of today's panel.
 
 `part-export` calls the endpoints through the client's existing `_make_api_request`, from
 the scenario's own code, so the client gains no export methods in this sub-project. It
-records:
+follows the export's 307 redirect by hand. Onshape requires the follow-up request to carry
+authentication, and `requests` drops it on a redirect to another host, so the scenario
+attaches it again only when the target host ends in `.onshape.com`. It records:
 
 - the part STL export with Onshape's defaults (`units=inch`, `mode=text`) and with
   `units=millimeter&mode=binary`, because the default is inches whatever the document's
@@ -377,11 +436,12 @@ Then, in replay mode and without any live call, it checks each exported file:
 - the mesh's bounding box matches the part's dimensions in millimetres, within 0.1 mm;
 - `tb-box`'s mesh slices with the existing Orca wrapper (`print/slicer.py`) and the fixed
   profile set;
-- `tb-oversized` is reported as larger than the plate by the print path's existing check.
+- `tb-oversized` is larger than the plate in the printer profile.
 
 ### 5.8 Drift report
 
-`testbed drift` compares a fresh recording with the stored one, scenario by scenario:
+`testbed drift` compares each fresh recording in `testbed/.fresh/` with the stored one,
+scenario by scenario:
 
 - For API traffic: the same requests in the same order, the same status codes, and
   response bodies with the same structure (keys and value types). Volatile values (ids that
@@ -399,18 +459,21 @@ why.
 
 `testbed record --ui` runs the scenarios that have a panel part inside real Onshape:
 
-1. Start the development server in record mode, as the workspace instructions describe,
-   with the `ONSHAPE_CLIENT_ID` and `ONSHAPE_CLIENT_SECRET` of PenguinCAM-chondl-dev.
-2. Launch real Google Chrome, headed under Xvfb, with its own profile directory kept
-   between runs (so Onshape sees a returning browser and the session survives), and grant
-   cad.onshape.com the Local Network Access permission.
+1. Start the development server in record mode on port 6238, as the workspace instructions
+   describe, with the `ONSHAPE_CLIENT_ID` and `ONSHAPE_CLIENT_SECRET` of PenguinCAM-chondl-dev.
+2. Launch real Google Chrome, headed under Xvfb. Its profile directory lives in
+   `~/.local/state/penguincam-testbed/chrome-profile/`, outside the repository and outside any
+   Docker build context, because it holds the owner's Onshape session cookies. The profile
+   is kept between runs, so Onshape sees a returning browser and the session survives. Grant
+   cad.onshape.com the local network permissions.
 3. Log in at cad.onshape.com with `ONSHAPE_USERNAME` and `ONSHAPE_PASSWORD`, unless the
    kept session is still signed in.
-4. Open each scenario's test document, open the PenguinCAM-chondl-dev panel, and connect
-   it through OAuth in the panel's popup when it asks; this is the one place OAuth runs.
-5. Use the checklist strip's buttons to send each scenario's request, and make the
-   selection in Onshape's parts list or feature tree, or in Onshape's select dialog, not by
-   clicking in the 3D view.
+4. Open each scenario's test document and open the PenguinCAM-chondl-dev panel. Connect it
+   through OAuth in the panel's popup when it asks; this is the one place OAuth runs. Choose
+   3D Printing, so the checklist strip appears on the print page.
+5. In the checklist strip, choose the scenario and press its buttons to send each request.
+   Make the selection in Onshape's parts list or feature tree, or in Onshape's select
+   dialog, not by clicking in the 3D view.
 6. Press Done in the checklist strip, run `testbed drift`, and report.
 
 The first run also switches `tb-inch`'s units to inches and records which panel URL the
@@ -426,14 +489,18 @@ Rules for the run:
   itself from such a check.
 - **Writes.** In the interface it changes only test documents, by the rules in section 5.1.
 - **Secrets.** The password goes only into Onshape's login form. It is never logged, put in
-  a screenshot's file name, or written to a file. Screenshots that show the owner's name or
-  email stay out of the repository.
+  a screenshot's file name, or written to a file. Screenshots go to
+  `~/.local/state/penguincam-testbed/screenshots/`, never into the repository, because they
+  can show the owner's name and email.
 
 **Real Chrome on this machine.** The container is aarch64 Linux and has only Chromium 151.
-Google now ships Chrome for ARM64 Linux as a `.deb`. The first build task installs it
-without root by unpacking the package into the home directory and pointing Playwright at
-the binary, and checks that it starts under Xvfb. If that fails, the run uses the bundled
-Chromium, headed, and says so in its report.
+Google ships Chrome for ARM64 Linux as a `.deb` (the URL answers; Chrome 155). The first
+build task installs it without root by unpacking the package into
+`~/.local/opt/google-chrome/` and pointing Playwright at the binary. The install script runs
+`ldd` to list missing libraries. GTK 3 is known to be missing in the container, so Chrome may
+not start. If it does not, the run uses the bundled Chromium, headed, and says so in its
+report. Chrome runs with its sandbox off inside the container, which is acceptable because
+it visits only cad.onshape.com.
 
 ## 6. Onshape checkpoint
 
@@ -441,43 +508,59 @@ The manual fallback, for when the automated Onshape UI run is stopped by a bot c
 the owner wants to see the panel for themselves. From the Mac's Chrome, with the
 development server in record mode:
 
-1. Open the test document the checklist names and open the PenguinCAM-chondl-dev panel;
-   connect through OAuth when asked.
-2. Follow the checklist strip: press each button, make the selection it asks for in
-   Onshape, move on.
+1. Open the test document the checklist names, open the PenguinCAM-chondl-dev panel,
+   connect through OAuth when asked, and choose 3D Printing.
+2. In the checklist strip, choose the scenario, press each button, make the selection it
+   asks for in Onshape, and move on.
 3. Press **Done** in the checklist strip.
 
 The agent then runs `testbed drift` and reports. The recordings are the same as from an
 automated Onshape UI run.
 
-**How the panel records, in either case.** In record mode the development server passes a
-`testbed` flag into the panel's templates (`wizard.html` and the print wizard). With it, a
-small test bed script adds the checklist strip, records every message the strip sends, and
-adds a `message` listener that records every message the panel receives, before any of the
-panel's own filters, and posts them to the development server, which saves them as message
-logs. The recorder saves the API traffic as cassettes. None of the panel's existing scripts
-change.
+**How the panel records, in either case.** The checklist strip lives only on the print
+page, which keeps the test bed out of the CNC path. When the test bed is on, the development
+server marks the print wizard's template, and a small test bed script then:
+
+- adds the checklist strip, with the scenario list;
+- sends `applicationInit` itself, because the print page does not yet (section 12);
+- records every message the strip sends;
+- adds a `message` listener that records every message the panel receives, before any of
+  the panel's own filters;
+- posts what it recorded to the development server, which saves it as message logs.
+
+The recorder saves the API traffic as cassettes. None of the panel's existing scripts
+change, and the CNC page is not touched at all. Scenarios that start on the CNC page
+(`panel-load`, `to-print`) are recorded from the server side and from the strip once the
+print page opens.
 
 ## 7. Budget and the call ledger
 
 - The call ledger is a local file outside the repository
-  (`~/.local/state/penguincam-testbed/ledger.jsonl`), with one line per live exchange
-  (each redirect hop separately): time, scenario, method, path, status, and whether Onshape
-  counts it (2xx and 3xx). It covers the API keys and the development app alike.
+  (`~/.local/state/penguincam-testbed/ledger.jsonl`), with one line per live exchange (each
+  redirect hop and each retry attempt separately): time, scenario, method, path, status, and
+  whether Onshape counts it (2xx and 3xx). It covers the API keys and the development app
+  alike.
+- The ledger is per machine. Onshape's My Account → Developer page stays the authority. A run
+  on another machine is not in this ledger, which is accepted, because the budget is a share
+  with headroom, not the whole allowance.
 - Every record-mode command checks the ledger before it starts. It refuses to run if the
   calls counted in the current cycle plus the command's estimate would pass the test bed's
   annual budget, or if one run would pass the per-run cap (default 150 counted calls).
-  Estimates come from the last recording of the same scenarios, or from section 5.1 for
-  `build-docs`.
-- The annual budget and the cycle start date are settings the owner gives (section 12).
-  Until then the budget is 250 counted calls, a tenth of a 2,500-call allowance.
+  Estimates come from the last recording of the same scenarios, or from each scenario's own
+  estimate before its first recording. A bad line in the ledger makes the command refuse,
+  naming the line, rather than undercount.
+- The annual budget and the cycle start date are settings the owner gives (section 13).
+  Until then the budget is 250 counted calls, a tenth of the 2,500-call allowance, over a
+  rolling year.
 - A 402 from Onshape stops every record-mode command at once and is reported in chat; no
   retry.
 - 429s are retried by the client's existing retry adapter, which honours `Retry-After`.
-  Three behaviours of that adapter matter here and stay as they are in this sub-project:
-  it does not cap the wait; after four retries it hands back the last 429 without raising;
-  and it retries a `POST` that got a 5xx, which for a translation request could start and
-  be charged for a second translation. The ledger makes all three visible.
+  Three behaviours of that adapter stay as they are in this sub-project, and the ledger
+  shows each of them:
+  - it does not cap the wait;
+  - after four retries it hands back the last 429 without raising;
+  - it retries a `POST` that got a 5xx, which for a translation request could start, and be
+    charged for, a second translation.
 - Each live API check, automated Onshape UI run and Onshape checkpoint report ends with
   the number of counted calls it made and the remaining budget.
 
@@ -488,43 +571,57 @@ whole allowance.
 ## 8. Where the code lives
 
 In PenguinCAM, on a new branch `feature/onshape-test-bed` cut from `feature/printer-relay`
-(the latest work, not yet merged):
+(the latest work, not yet merged), with `origin/main` merged in:
 
 ```
 testbed/
-  __main__.py           CLI: build-docs, record, record --ui, replay, drift, accept, ledger
+  settings.py           the switch, the guards, every test bed setting (5.6)
+  __main__.py           CLI: build-docs, record, record --ui, drift, accept, ledger
   documents.py          test documents (5.1)
-  recorder.py           recorder and scrubbing (5.2)
-  replay.py             replay adapter and fake Onshape API (5.3)
-  host/                 fake Onshape host page and its script (5.4)
-  panel/                checklist strip and message recording script (6)
-  scenarios/            one file per scenario (5.7)
-  ui_run.py             automated Onshape UI run (5.9)
-  drift.py              drift report (5.8)
+  scrub.py, cassette.py recording format and scrubbing (5.2)
+  adapters.py           recorder, replay, current scenario (5.2, 5.3)
   ledger.py             call ledger and budget (7)
-  cassettes/            cassettes and exported files, committed
-  messages/             message logs, committed
-  fixtures/             PenguinCAM-config.yaml stand-in
-  requirements.txt      Playwright, pinned; development only
+  flask_hooks.py        sign-in, scenario and message routes (5.5, 6)
+  messages.py           message log format (6)
+  panel/                checklist strip and message recording script (6)
+  host/                 fake Onshape host page and its script (5.4)
+  browser.py            Playwright harness and the replay development server (5.4)
+  scenarios/            scenario definitions and runners (5.7)
+  mesh.py               exported mesh checks (5.7)
+  drift.py              drift report (5.8)
+  ui_run.py             automated Onshape UI run (5.9)
+  scripts/install-chrome.sh
+  cassettes/, messages/ committed recordings
+  fixtures/             team-config-fixture.yaml
+  requirements.txt      playwright==1.63.0; development only
   tests/
 ```
 
 Changes outside `testbed/`, all inert unless `PENGUINCAM_TESTBED` is set:
 
-- `onshape_integration.py`: `OnshapeClient.__init__` installs the recorder or replay
-  adapter; `API_BASE` comes from `ONSHAPE_API_BASE`; `get_client` and
-  `update_session_tokens` change as in 5.5.
-- `frc_cam_gui_app.py`: the import-time guard (5.6), the test bed's routes, the
-  `/onshape/status` change (5.5), and the `testbed` flag passed to the panel template.
-- `print/routes.py`: the same flag passed to the print wizard's template.
-- `templates/wizard.html` and `print/templates/print_wizard.html`: one conditional
-  `<script>` tag that loads the test bed's panel script.
-- `Makefile`: `testbed/tests` joins the discovery in `make test-quick`, so the replay-adapter
-  and unit tests run with every change. The browser scenarios run in a separate
-  `make testbed-replay`, which installs `testbed/requirements.txt` into the development
-  environment the way `make test-daemon` installs the daemon's, and never touches the
-  Docker image. `make testbed-replay` is required before any change to the print path's
-  Onshape code is called done. `make testbed-record` runs the live API check.
+- `onshape_integration.py`, the sign-in and client plumbing that the CNC and print paths
+  share:
+  - `OnshapeClient.__init__` installs the recorder or replay adapter;
+  - `get_client` and `update_session_tokens` change as in 5.5.
+- `frc_cam_gui_app.py`:
+  - the import-time guards (5.6);
+  - registering the test bed's routes and the template flag;
+  - the `/onshape/status` change (5.5).
+- `print/templates/print_wizard.html`: one conditional `<script>` tag that loads the
+  checklist strip. The CNC template is not changed.
+- `Makefile`, in three parts:
+  - `testbed/tests` joins the discovery in `make test-quick`, so the unit tests run with
+    every change.
+  - The browser scenarios run in a separate `make testbed-replay`. It installs
+    `testbed/requirements.txt` into the development environment, the way `make test-daemon`
+    installs the daemon's, and never touches the Docker image. `make testbed-replay` is
+    required before any change to the print path's Onshape code is called done.
+  - `make testbed-record` runs the live API check.
+- `.dockerignore` and `.gitignore`: `testbed/.fresh/` and the test bed's logs.
+
+The replay development server that browser scenarios start runs on port 6240, so a
+development server already on 6238 is left alone. Record mode uses 6238, because the
+development app's OAuth redirect is pinned there.
 
 `onshape_harness.py` keeps working as it is. Its API-key client is the same one the live
 API check uses.
@@ -533,31 +630,43 @@ A guide to using the test bed goes in PenguinCAM's `docs/` (`docs/ONSHAPE_TEST_B
 because any developer of PenguinCAM can use it. It describes the tool neutrally. How the
 owner runs Onshape checkpoints goes in the notes repository's `guides/`.
 
-## 9. Error handling
+## 9. New entities and identifiers
+
+| Entity | Identifier | Durability | Documented in | Lifecycle |
+|---|---|---|---|---|
+| Scenario | its name, for example `part-select` | durable; names cassette and message-log files | `testbed/scenarios/` definitions | renaming a scenario renames its two files in the same commit |
+| Test document | Onshape document id; the `tb-` name is the lookup key in `testbed/documents.json` | durable while the document exists | `documents.json`, section 5.1 | `--rebuild` replaces the id; the name stays |
+| Message sent by the strip | `messageId` `testbed-<n>`, n counting from 1 per page load | ephemeral | `testbed/panel/` | none |
+| Stand-ins for the owner | user id `000000000000000000000001`, companies `0000000000000000000000c1`, `…c2`, …, email `testbed@example.invalid`, name `Test Bed Owner` | durable in committed recordings | `testbed/scrub.py` constants | changing them re-records nothing; only the scrubber and tests change |
+| Session flag | `testbed_apikey` | per browser session, replay mode only | `testbed/flask_hooks.py` | none |
+
+## 10. Error handling
 
 | What fails | What happens |
 |---|---|
-| A request in replay mode has no match | 599 naming the request; the scenario fails with "not in the cassette". |
+| A request in replay mode has no match | 599 naming the method, host and path; the scenario fails with "not in the cassette". |
 | `ONSHAPE_ACCESS_KEY` or `ONSHAPE_SECRET_KEY` missing | The live API check and `build-docs` stop and name the missing variable. Replay mode needs neither. |
 | `ONSHAPE_USERNAME` or `ONSHAPE_PASSWORD` missing | The automated Onshape UI run stops and names the variable. |
-| `ONSHAPE_CLIENT_ID` or `ONSHAPE_CLIENT_SECRET` missing | Record mode refuses to start the development server and names the variable, rather than falling back to the production app's id. |
+| `ONSHAPE_CLIENT_ID` or `ONSHAPE_CLIENT_SECRET` missing, or the production id | The development server refuses to start in record mode and names the variable. |
 | The test folder's id is not set | `build-docs` stops and asks for it. |
 | Onshape shows a CAPTCHA, a challenge or a verification step | The automated Onshape UI run stops, saves a screenshot, and asks the owner. |
 | Onshape's interface has changed so a step cannot find its control | The run stops at that step with a screenshot; the step is fixed, or an Onshape checkpoint covers it. |
 | 402 from Onshape | All record-mode commands stop; reported in chat. |
-| Budget would be exceeded | The command refuses to start and shows the ledger total and the estimate. |
+| Budget would be exceeded, or a ledger line is unreadable | The command refuses to start and says why. |
 | A write would touch something other than a test document | Refused before the call; this is a bug and fails loudly. |
 | Scrub test finds a secret-like string | The build fails and names the file and line. |
-| The test browser cannot frame the panel (origin, CSP or Local Network Access) | The first build task stops and reports which check failed, since the panel cannot be tested without it. |
+| The test browser cannot frame the panel (origin, CSP or local network permission) | The harness test fails and reports which check failed, since the panel cannot be tested without it. |
 | No message log yet for a browser scenario | The scenario is skipped with "needs a recording", not passed. |
 
-## 10. Testing the test bed
+## 11. Testing the test bed
 
-- Unit tests for scrubbing, request matching, translation replay, drift comparison, mesh
-  bounding boxes, and the ledger's budget arithmetic.
-- Tests that the module refuses to load with `PENGUINCAM_TESTBED` set under each deployed
-  signal, and that the development sign-in route, flag, adapters and panel script are
-  absent without it.
+- Unit tests for scrubbing (including a `/blobelements/` config download), request matching,
+  redirect hops, translation replay, drift comparison, mesh bounding boxes, and the ledger's
+  budget arithmetic.
+- Tests, each in a fresh process, that the app:
+  - refuses to load with `PENGUINCAM_TESTBED` set under each deployed signal;
+  - refuses record mode without the development app's credentials;
+  - without the variable, has no test bed route, flag, adapter or panel script.
 - A test that `update_session_tokens` leaves the cookie alone for an API-key client.
 - `make testbed-replay` runs every browser scenario in replay mode with Playwright, under
   Xvfb as in the container's notes.
@@ -569,7 +678,7 @@ owner runs Onshape checkpoints goes in the notes repository's `guides/`.
   - one live API check has run with its counted calls reported;
   - the drift report between the two recordings is clean.
 
-## 11. Findings outside this sub-project
+## 12. Findings outside this sub-project
 
 Reported for the owner, not acted on here:
 
@@ -584,7 +693,7 @@ Reported for the owner, not acted on here:
   while the synchronous export works, but model from Onshape must not reuse it as it stands
   if a 3D export needs translations.
 
-## 12. What the agent needs from the owner
+## 13. What the agent needs from the owner
 
 1. **Usage so far.** The plan is EDU Student (2,500 calls a year, owner, Fri 10-09). What
    does My Account → Developer show as used, and when does the cycle reset? Was
