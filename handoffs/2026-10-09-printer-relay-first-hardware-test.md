@@ -100,6 +100,34 @@ the team will have is what the daemon sends to the server. So:
 - It needs a channel that works before pairing (there is no token yet), a cap on volume, and
   no secrets: never the access code, the token or download tokens.
 
+### The daemon as one self-contained executable
+
+**The owner wants the daemon rebuilt as a single executable with no dependencies,**
+probably in Go or Rust. Python seemed a good idea at first, but every install today needs
+Python 3.11 or newer, a virtual environment and three packages downloaded from PyPI
+(`bambulabs_api`, `requests`, `tomli-w`), and each of those is a way for a mentor's install
+to break. The goal is a file you download or copy off a USB key that runs at once and works
+every time.
+
+Points to settle in the design:
+
+- **What `bambulabs_api` does for us now:** MQTT over TLS to the printer, the implicit FTPS
+  upload with TLS session reuse on the data connection, and the status document. The new
+  daemon does these itself. Its own FTPS code is also the place to fix issue 2, deciding
+  success by the printer's report rather than the FTP reply.
+- **The printer's certificate:** Bambu printers present a certificate that ordinary
+  verification rejects. The new daemon needs an explicit policy for it, not a library
+  default.
+- **Which platforms get a build:** the Raspberry Pi (aarch64 Linux) at least. macOS, which
+  this test used, and Windows would let a mentor run it on a shop computer with no Pi.
+- **The installer** (`install.sh`, the systemd unit, the `penguincam` user) shrinks to
+  copying one file and registering the service. Whether the executable installs itself as
+  a service is part of the design.
+- **What carries over unchanged:** the backend's daemon routes, pairing, and the job
+  protocol. The tests in `print/printer_daemon/tests/` describe the behaviour to keep.
+- This work and the telemetry and local log features above touch the same code, so the
+  order in which they are built matters.
+
 ### A clearer local log on the daemon
 
 Some mentors are savvy and will read the daemon's own log. It should tell them plainly
