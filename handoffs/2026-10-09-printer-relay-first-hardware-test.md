@@ -208,6 +208,54 @@ Expectations recorded with the owner:
   printer, flattening for any vendor's folder, and plain `.gcode` output where the printer
   wants it.
 
+#### An option to weigh: a brand-neutral bridge, adapters on the server
+
+The owner would prefer the adapters to live only on the server, but expects each
+printer's networking to differ enough to need daemon changes. One way to get most of the
+way there is to split each printer protocol into two layers:
+
+- **Transport:** opening a connection to the printer and moving bytes (TCP, with or without
+  TLS, HTTP, USB serial). This has to run on the shop's LAN.
+- **Protocol:** what the bytes mean (Bambu's MQTT commands and status fields, Moonraker's API,
+  Marlin G-code over serial). This can run anywhere.
+
+The daemon would become a **bridge**: it holds one outbound connection to the server and
+carries traffic between the server and the paired printer. The adapters, which speak the
+protocols, would run on the server.
+
+What it gets:
+
+- Bambu (MQTT and FTPS), Klipper/Moonraker, PrusaLink and OctoPrint all run over TCP or
+  HTTP. Once the bridge carries TCP, adding any of them is a server change. A new daemon
+  release is needed only for a new kind of transport, such as USB serial for plain Marlin
+  printers, or a brand's discovery broadcast.
+- Every protocol exchange, error and status document happens on the server, where it can
+  be logged. This serves the principle above directly.
+- The self-contained executable stays small: a bridge with a few transports, not a
+  collection of printer protocols.
+
+What it costs, and what would need deciding:
+
+- **The secrets rule.** No team's secret may be kept on Railway, and the relay spec keeps
+  the printer's access code only on the Pi. A server-side adapter needs that code to log in
+  to the printer. It could stay in memory only, sent by the daemon on each connection, so
+  it is never stored, but the server would then handle a team's printer credential, which
+  it does not today.
+- **Reach into the shop's LAN.** The bridge must refuse everything except the paired
+  printer's address and that protocol's ports. Otherwise whoever controls the server can
+  reach any machine on a school network.
+- **A permanent connection per shop.** Bambu's status arrives over a connection that stays
+  open, so the server holds one open connection per printer through the bridge. The relay
+  keeps its state in memory, so all of a team's traffic must reach the same server process.
+  When the server is down, status stops, where today the daemon keeps talking to the
+  printer.
+- **Uploads go through the bridge.** The sliced file already lives on the server, so the
+  amount of data is about what the daemon downloads today.
+
+The relay already has this shape: brand-neutral parts on the server, a daemon that only
+connects outbound. The bridge extends it, at the price of the access code and the LAN
+restrictions above.
+
 ### A clearer local log on the daemon
 
 Some mentors are savvy and will read the daemon's own log. It should tell them plainly
