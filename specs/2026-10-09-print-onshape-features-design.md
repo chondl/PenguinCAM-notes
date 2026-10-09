@@ -174,6 +174,8 @@ the print page's session gate.
 | `GET /print/parts/<ref>.stl` | session gate, owning page id | 120 per minute |
 | `POST /print-job` | existing | existing (3 per minute) |
 | `POST /print/client-event` | session gate | 30 per minute |
+| `POST /print/deliver` | session gate | 30 per minute |
+| `GET /print/part` | none: it serves only the sample part, for the upload mode; the Onshape flow never calls it | existing (200 per hour) |
 
 The session gate is the existing `require_session` in `ctx`. The Onshape sign-in gate is the
 app's `_has_onshape_session`, handed in through `init_print_routes` as it already is to
@@ -308,8 +310,16 @@ Resolution rules:
 
 Export, one part at a time:
 
-- `GET /parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{pid}/stl?mode=binary&units=millimeter`,
-  plus `configuration` and `linkDocumentId` when set, sent with `allow_redirects=False`.
+- `GET /parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{pid}/stl?mode=binary&units=millimeter`
+  with an explicit print tessellation, `chordTolerance=0.00005` (metres, so 0.05 mm) and
+  `angleTolerance=0.1309` (radians, 7.5°), plus `configuration` and `linkDocumentId` when
+  set, sent with `allow_redirects=False` and `Accept: application/vnd.onshape.v1+octet-stream`
+  on the request and every hop. **Ruling:** Onshape's OpenAPI gives the units (chord in
+  metres, angle in radians and under π/2) but not the server's defaults, so the print path
+  never relies on them. 0.05 mm is under half the finest layer step and far under the
+  0.4 mm nozzle; 7.5° gives every hole 48 segments. Typical FRC parts stay well under the
+  per-part triangle cap (section 5); the validation run (section 11) records the triangle
+  counts the test documents actually export. Both values are constants in `print/limits.py`.
 - The 307 is followed by hand, with authentication re-attached only when the target host
   ends in `.onshape.com`. This is the same rule as the test bed's `part-export` scenario;
   the redirect helper lives in `print/onshape_parts.py`, and the test bed imports it from
@@ -321,7 +331,7 @@ Export, one part at a time:
   `_make_api_request` becomes a call to it with the API base prefixed. Authentication stays
   in one place, and no token leaves the client.
 - **The download is streamed** with a byte cap (section 5): beyond the cap the export stops
-  and the student sees "<name> is too detailed to print here (over 250,000 triangles)."
+  and the student sees "<name> is too detailed to print here (over 150,000 triangles)."
 - **Ruling:** one export per part, not the Part Studio endpoint's zip of several parts. Its
   file naming is undocumented, and the per-part call is deterministic. The production app
   is public, so its calls cost nothing. The development app's calls are counted by the
@@ -392,7 +402,11 @@ From the spike and the adversarial review's experiments, observed on Fri 10-09:
   with an empty name in `plate_1.json` and print under `; printing object  id:0`, which
   the printer's skip-object list shows blank. One `<object>` per copy, each with its own
   name, gives every copy its own named entry and G-code label.
-- A 30-copy plate (30 hubs, 36 mm across) sliced in 8.7 s with 814 MB peak memory.
+- A 30-copy plate (30 hubs, 36 mm across, 512 triangles each, **15,360 triangles in all**)
+  sliced in 8.7 s with 814 MB peak memory. Triangle count drives time and memory: the plan
+  review's plate of 30 copies at 249,960 triangles in all took 43 s and 716 MB (732,988 KB),
+  and at 999,960 triangles 5 min 52 s and 1,087 MB (1,113,140 KB), past the slice timeout
+  (section 5).
 - Student overrides merged into a process profile take effect: the G-code header shows the
   chosen infill, walls, supports and brim.
 - `--rotate` flags are unusable.
@@ -477,8 +491,10 @@ Orca's arrange also changes rotations, which would undo the student's choices.
 - `JobPool.submit()` gains a payload argument, which the pool hands to the worker with the
   job id (`print/jobs.py`, `print/routes.py`); today the worker receives only the job id.
 - The worker writes a 3MF (3MF core specification) to the job's scratch directory:
-  - **one `<object>` mesh per copy**, named `<part name> #<n>`, n counting from 1 for each
-    part. **Ruling:** Orca blanks the names of copies that share an object (4.1); one object
+  - **one `<object>` mesh per copy**, named `<part name> #<n>`, the part name sanitized
+    (below) and n counting from 1 for each sanitized name, so two different parts that are
+    both named `Bracket` give `Bracket #1`, `Bracket #2`, `Bracket #3`, never two
+    `Bracket #1` (a naming decision for the owner to confirm, section 12). **Ruling:** Orca blanks the names of copies that share an object (4.1); one object
     per copy gives every copy its own name in `plate_1.json`, in the G-code and in the
     printer's skip-object list. The 3MF grows with the number of copies, but it is only
     Orca's input;
@@ -536,7 +552,8 @@ Multiple parts are what sections 3 and 4 already describe. The rules:
 
 - one plate only. **Ruling:** several plates are out of scope; when the copies do not fit,
   the message suggests lowering quantities and printing twice;
-- a slice of many copies takes longer. The job pool's timeout stays, and the slice
+- a slice of many copies takes longer. **Ruling:** a plate slice gets 240 s before it is
+  stopped; the sample part's slice keeps today's 120 s (`print/slicer.py`). The slice
   status line already shows elapsed time.
 
 **Limits**, set from the measurements so that one job stays well inside the memory of the
@@ -545,17 +562,26 @@ slice at a time):
 
 | Limit | Value | Basis | Message |
 |---|---|---|---|
-| Triangles per part | 250,000 | pure-Python reading of 1,000,000 triangles took 557 MB; the numpy read at 250,000 is a few tens of MB | "<name> is too detailed to print here (over 250,000 triangles)." |
-| Download per part | 12.5 MB, streamed | exactly 250,000 binary STL triangles plus the header | same as above |
+| Triangles per part | 150,000 | half the per-job cap, so one part can still go on a plate twice; the export's tessellation (3.3) keeps typical FRC parts well under it; the numpy read at this size is a few tens of MB | "<name> is too detailed to print here (over 150,000 triangles)." |
+| Download per part | 7.5 MB, streamed | exactly 150,000 binary STL triangles plus the header (7,500,084 bytes) | same as above |
 | Distinct parts per page id | 20 | the first draft's figure; each part costs one export | "Up to 20 different parts per print." |
 | Mesh bytes per page id | 50 MB | 20 parts at a typical 2.5 MB | "These parts are too large to slice together." |
-| Copies per plate | 30, quantity 1 to 30 each | 30 copies measured at 814 MB peak and 8.7 s; 50 copies were never measured | "Up to 30 copies per plate; print the rest in a second job." |
-| Triangles per job, summed over copies | 1,000,000 | Orca's memory grows with objects; held to the order of the measured plate | "These copies are too detailed to slice together; lower the quantities." |
+| Copies per plate | 30, quantity 1 to 30 each | 30 copies of 512 triangles (15,360 in all) measured at 814 MB peak and 8.7 s; 30 copies of 8,332 triangles (249,960 in all) at 716 MB and 43 s; 50 copies were never measured | "Up to 30 copies per plate; print the rest in a second job." |
+| Triangles per job, summed over copies | 300,000 | triangles, not copies, drive time and memory: 249,960 took 43 s and 716 MB, 999,960 took 5 min 52 s and 1,087 MB (plan review, Fri 10-09); 300,000 is confirmed by the first build task's measurement | "These copies are too detailed to slice together; lower the quantities." |
+| Plate slice time | 240 s (the sample part keeps 120 s) | 249,960 triangles took 43 s, so a plate at the caps has room on a busier machine | "The slicer took too long on this part." (today's sentence) |
 | Part store on disk, all page ids | 500 MB | backstop: a reload makes a new page id and so escapes the per-page limits | "The print service is busy; try again in a few minutes." |
 
-The first build task slices a plate at the caps (30 copies, 1,000,000 triangles) and records
-its peak memory and time in `print/jobs.py`'s sizing note beside the existing 93 MB figure.
-If the peak is over 1 GB, the caps come down before shipping.
+The first build task, before the part store exists, slices plates at the limits (30 copies
+with 300,000 triangles in all, and two copies of one 150,000-triangle part) and records
+their peak memory and time in `print/jobs.py`'s sizing note beside the existing 93 MB figure.
+**Stop rule:** if either plate peaks over 900 MB (921,600 KB of peak resident memory, 1 MB = 1,024 KB as Linux reports it) or takes over 180 s, the per-job triangle
+cap comes down to the largest value that stays inside both, and that value and its
+measurement are recorded there and in this table.
+
+**Where the numbers came from.** The 814 MB and 8.7 s figure that first set the copy cap was
+measured on 30 copies of only 512 triangles each, 15,360 in all; it never supported the
+first draft's 1,000,000-triangle job cap. The plan review measured the same 30-copy plate at
+249,960 and 999,960 triangles in all (4.1), and the job and part caps were set from those.
 
 ## 6. Profiles
 
@@ -753,9 +779,9 @@ its own messages.
 |---|---|---|---|---|
 | Page id | `pid`, 12 lowercase hex characters, made in the browser per page load | ephemeral; lives in page memory and in log lines | `print/static/print_wizard.js`, `print/events.py`, `docs/3D_PRINTING.md` | gone on reload; log lines keep it for Railway's retention |
 | Part `ref` | 128-bit `secrets.token_urlsafe(16)` | one hour after last use | `print/part_store.py` | Refresh issues new refs; the sweeper deletes expired entries and orphan directories |
-| Copy object name | `<part name> #<n>`, sanitized | lives in the delivered `.gcode.3mf` and on the printer's skip-object list | `print/plate_3mf.py` | fixed when the job is sliced |
+| Copy object name | `<sanitized part name> #<n>`, n counting per sanitized name | lives in the delivered `.gcode.3mf` and on the printer's skip-object list | `print/plate_3mf.py` | fixed when the job is sliced |
 | Delivered file name | `<first part name>[_plus<N>]-<YYYYMMDD-HHMM>.gcode.3mf` | durable on the team's disk, Drive and printer | `print/plate_3mf.py`, `docs/3D_PRINTING.md` | the relay adds its own `-j<id>` suffix when sending |
-| Print event names | `page`, `config`, `select`, … (2.1) | durable in logs and metrics | `print/events.py`, `docs/3D_PRINTING.md` | renaming one breaks saved log searches; `print_job` is retired in their favour |
+| Print event names | `page`, `config`, `select`, … (2.1) | durable in logs and metrics | `print/events.py`, `docs/3D_PRINTING.md` | renaming one breaks saved log searches; `print_job` is retired in their favour. `deliver` arrives through `POST /print/deliver` (metrics name `print_deliver`) |
 | Orca profile names as team config keys | Orca's own `name` field, for example `Bambu PLA Basic @BBL H2S` | as durable as Orca's naming; name-derived | `docs/3D_PRINTING.md`, `index.json` | an Orca rename makes a printer key fail closed and a filament or process key drop with a warning, both naming the key |
 | `X-Print-Page` header | carries the page id | per request | `print/routes.py` | none |
 
@@ -782,6 +808,11 @@ agent prepares a checklist for it:
 - Whether to allow STL upload in full-page mode.
 - Whether teams should choose the nozzle volume type and the plate (6.1).
 - Whether other printer families are wanted in the catalog.
+- **Copy names (a naming decision to confirm):** copies are numbered per sanitized name,
+  not per part (4.6), so two different parts both named `Bracket` print as `Bracket #1`,
+  `Bracket #2`, `Bracket #3` on the printer's skip-object list, and the list does not say
+  which Part Studio each came from. The alternative, telling them apart by Part Studio, makes
+  longer names.
 - The rate limiter keys on the remote address, and `ProxyFix` is set without `x_for`, so
   behind Railway's proxy every limit may be counted per proxy rather than per user. Not
   verified; it affects the whole app, not only printing.
@@ -803,7 +834,7 @@ finding was checked against its evidence before folding.
 | M8 selection departs from the proven pattern | Folded (3.2): count 1, `REQUESTED_SELECTION`, re-arm, deselection defined |
 | M9 configurations ignored | Folded (3.3): configuration passed through; a configured Part Studio without one is refused, never exported in its default |
 | M10 unsafe text in logs, 3MF and G-code | Folded (2.1, 4.6): one quoting rule; names sanitized to the file-name character set |
-| M11 resource limits unmeasured | Folded (3.3, 5): numpy read, streamed byte cap, triangle caps, 30-copy cap. Verified: 30 copies 814 MB and 8.7 s; one million triangles 1.1 s and 557 MB in pure Python (the review measured 2.4 s and 658 MB; same order) |
+| M11 resource limits unmeasured | Folded (3.3, 5): numpy read, streamed byte cap, triangle caps, 30-copy cap. Verified: 30 copies 814 MB and 8.7 s, on 15,360 triangles in all (corrected by the plan review, below); one million triangles 1.1 s and 557 MB in pure Python (the review measured 2.4 s and 658 MB; same order) |
 | M12 synthetic message logs contradict the test bed spec | Folded (8.1, 8.2) with the controller's ruling: synthetic logs only as marked self-test fixtures, deleted when recordings land |
 | M13 no new entities section | Folded (section 10, Terms) |
 | m1 `team=` on default config | Folded (2.1) |
@@ -824,3 +855,11 @@ finding was checked against its evidence before folding.
 | m16 one error helper; overrides confirmed | Folded (2.1, 6.3) |
 | Lens 7 vocabulary ("instance", "session", "plate") | Folded (Terms) |
 | Lens 9 cuts: 3D view in Layout, keyboard nudges, allowlist clause, `request` metrics rows | Folded (4.5, 6.2, 2.1) |
+
+**Plan review (Fri 10-09).** The adversarial review of the implementation plan measured a
+30-copy plate at the first draft's job cap: 999,960 triangles took 5 min 52 s and 1,087 MB,
+past both the 120 s slice timeout and the memory rule, and 249,960 took 43 s and 716 MB.
+Folded (3.3, 4.1, 4.6, 5, 12) with the controller's rulings: 300,000 triangles per job,
+150,000 per part, 30 copies per plate, a 240 s plate slice timeout, an explicit export
+tessellation, the measurement first with a stop rule at 900 MB or 180 s, and copy numbering
+per sanitized name sent to the owner.

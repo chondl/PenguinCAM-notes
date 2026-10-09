@@ -58,10 +58,14 @@ Copied from the spec; every task's requirements include these.
   `GET /print/parts/<ref>.stl` session gate and owning page id, 120 per minute;
   `POST /print-job` existing, 3 per minute; `POST /print/client-event` session gate,
   30 per minute.
-- Limits: triangles per part **250,000**; download per part **12.5 MB, streamed**;
+- Limits: triangles per part **150,000**; download per part **7.5 MB, streamed**;
   distinct parts per page id **20**; mesh bytes per page id **50 MB**; copies per plate
-  **30, quantity 1 to 30 each**; triangles per job **1,000,000**; part store on disk
-  **500 MB**. Each with the spec's sentence (section 5 table), copied exactly.
+  **30, quantity 1 to 30 each**; triangles per job **300,000** (or lower, if Task 0's stop
+  rule lowers it); plate slice timeout **240 s**, the sample part's slice keeping
+  **120 s**; part store on disk **500 MB**. Each with the spec's sentence (section 5
+  table), copied exactly. Every STL export asks for an explicit tessellation:
+  `chordTolerance=0.00005` (metres, 0.05 mm) and `angleTolerance=0.1309` (radians, 7.5°),
+  constants in `print/limits.py` (spec 3.3).
 - "every footprint lies inside the printable area, read from the printer profile's
   `printable_area`, with a 3 mm margin"; spacing "**5 mm**", "a constant in
   `print/plate.py` and is sent to the browser with the plate size, so there is one source."
@@ -106,6 +110,12 @@ Copied from the spec; every task's requirements include these.
 5. **The same part arriving twice** (clicked, then picked in the dialog). Expected: listed
    once, exported once. Owning tests: Task 6 `test_same_source_returns_existing_ref`,
    Task 7 `addParts ignores a ref already listed`.
+6. **A part added in Onshape a minute after the panel cached the parts list or the assembly
+   definition, then clicked.** Expected: the cache miss refetches once and the part is
+   added, never refused as unknown. Owning tests: Task 4
+   `test_partstudio_cache_miss_refetches_once` and `test_assembly_cache_miss_refetches_once`.
+7. **A plate at the limits** (30 copies, 300,000 triangles). Expected: it slices inside the
+   240 s plate timeout and under 900 MB. Owning step: Task 0 Step 4 (the stop rule), and V17.
 
 ---
 
@@ -115,20 +125,42 @@ The spec leaves these open or contradicts itself; the plan rules as follows.
 
 | # | Gap | Ruling |
 |---|---|---|
-| R1 | 6.2 "Two files with the same name fail the build", but 104 filament names (for example `Bambu ABS-GF @base`) exist in both `BBL/` and `OrcaFilamentLibrary/`; neither tree has a duplicate inside itself (checked Fri 10-09) | A duplicate inside one tree fails the build. A BBL name shadows the library's, as Orca resolves vendor profiles first; the shadowed count is printed in the build log |
+| R1 | 6.2 "Two files with the same name fail the build", but 104 filament names (for example `Bambu ABS-GF @base`) exist in both `BBL/` and `OrcaFilamentLibrary/`; neither tree has a duplicate inside itself (checked Fri 10-09) | A duplicate inside one tree fails the build. A BBL name shadows the library's, because `BBL.json` registers its own copy of each such profile (for example `"name": "Bambu ASA @base"` with `sub_path` `filament/Bambu ASA @base.json`), so the BBL file is the one Orca loads for a BBL printer. The choice matters: 96 of the 104 shared names differ in value (`PolyLite ASA @base` has a maximum volumetric speed of 13 in one tree and 12 in the other). Neither tree has a duplicate inside itself (BBL machine 63, process 243, filament 2,198; library 482). The shadowed count is printed in the build log |
 | R2 | 4.2 says `orientation` names "which axis of the part points down", yet `+z` is "as modelled", where `-z` points down | `orientation` names the part axis that points **up**; `+z` is as modelled. Matrices in Task 8 |
 | R3 | 2.1 `deliver` has no route: Download and Drive are app routes outside `print/` | New `POST /print/deliver` `{job_id, action, outcome}`, session gate, 30 per minute. The wizard reports download and Drive; `printer_panel.js` reports the printer outcome through `window.PenguinCAM.reportDeliver`. Logged with `job=<id8>` |
-| R4 | `EventSource` cannot send the `X-Print-Page` header | `GET` print routes also accept the page id as the `pid` query parameter. `GET /print` and static files need none |
+| R4 | `EventSource` cannot send the `X-Print-Page` header | `GET` print routes also accept the page id as the `pid` query parameter. `GET /print`, `GET /print/part` (R15) and static files need none |
 | R5 | 4.4 `arrangeCopies(copies, plate, spacing)` has no footprints | `arrangeCopies(copies, parts, plate)`; `plate.spacing` carries the spacing |
-| R6 | Copy numbering `<part name> #<n>`, "n counting from 1 for each part", collides when two parts share a name (Review Focus 1) | One label everywhere (3MF object, `plate_1.json`, Layout sentences): sanitized name + ` #n`, with n counting per sanitized name |
-| R7 | 5 "the first build task slices a plate at the caps", but slicing a plate exists only after the 3MF writer | The measurement is a step of Task 9. All caps are constants in `print/limits.py`, so lowering them is one edit |
+| R6 | Copy numbering `<part name> #<n>`, "n counting from 1 for each part", collides when two parts share a name (Review Focus 1) | One label everywhere (3MF object, `plate_1.json`, Layout sentences): sanitized name + ` #n`, with n counting per sanitized name. It changes a durable name (the printer's skip-object list), so it is in the spec's section 12 as a naming decision for the owner to confirm |
+| R7 | 5 "the first build task slices a plate at the caps", but slicing a plate exists only after the 3MF writer | The measurement needs only Orca and synthetic meshes, so it is Task 0, before the part store (Task 5): its script writes its own minimal one-object-per-copy 3MF. Task 0 creates `print/limits.py` with the numeric limits, so lowering a cap is one edit; Task 9 moves the script onto `write_plate_3mf` and re-runs it (V17) |
 | R8 | Upload (full-page) mode and `POST /print-job` | A body without `copies` keeps today's sample-part job unchanged (delivered as `sample_part.gcode.3mf`). Upload mode shows the default set read-only, with no overrides |
 | R9 | Override defaults | Each of the four menus starts at "Profile default", which sends nothing. With `allow_overrides: false`, a non-empty `overrides` is a 400 |
 | R10 | Footprint centre and rotation pivot are not defined | A footprint is centred on its bounding-box centre after the orientation; `angle` rotates counterclockwise seen from above, about that centre; `x, y` place that centre |
 | R11 | Sentences the spec does not fix | Fixed in the owning task, in its constants: placement rules (Task 8), page id refusal, mesh too small, assembly part not found (Tasks 1, 4, 5), config warnings (Task 14) |
-| R12 | `layout` event "when the student enters Preview" | Logged by `POST /print-job` for a valid placement: entering Preview is what submits |
-| R13 | Test bed scenario estimates for the four new scenarios | 12 counted calls each |
-| R14 | Docstrings with "fixed set" / "sample part" / "Stage 1" | Swept in Task 14 (server) and Task 15 (template), when they stop being true |
+| R12 | `layout` event "when the student enters Preview" | Logged by `POST /print-job` for a valid placement: entering Preview is what submits. A reused finished job (Task 12, unchanged `jobBody`) posts nothing, so it logs no second `layout` event |
+| R13 | Test bed scenario estimates for the four new scenarios | Computed per scenario from its steps (Task 16), counting what the ledger counts (responses 200–399, so each export's 307 and its 200 are two): panel load 6 as in `panel-load` |
+| R14 | Docstrings with "fixed set" / "sample part" / "Stage 1" | Swept in Task 14 (server) and Task 15 (template), when they stop being true; `docs/3D_PRINTING.md`'s stage 1 text is swept in Task 15 Step 5 (list there) |
+| R15 | `GET /print/part` is "deliberately ungated" in `docs/3D_PRINTING.md`, but Task 1's page id gate covers every print route | `/print/part` stays ungated, with no session gate and no page id: it serves only the sample part, for the upload mode. The Onshape flow never calls it (Task 12 fetches `/print/parts/<ref>.stl`). Task 1 exempts it from the page id gate and tests that |
+| R16 | Parts list and assembly definition are cached for 600 s, but a workspace changes while a student models | A cache miss (a part id, `selectionId` or occurrence path not found in the cached answer) refetches that answer once, bypassing the cache, before refusing (Task 4) |
+| R17 | `targetOrigin = context.server` silently drops every message when the return URL has no `server` on an enterprise domain | Outgoing messages are posted with `'*'`, as `static/source_onshape.js` does; they carry no secret. Incoming messages are accepted from `context.server` or from any `https://` origin whose host is `onshape.com` or ends in `.onshape.com` (the server-validation rule of Task 3), and dropped otherwise (Task 7) |
+
+## Adversarial review (folded in)
+
+The plan review (Fri 10-09) read the test bed worktree and ran Orca. Each finding was checked
+against its evidence (the code, and the runs' `/usr/bin/time` output) before folding.
+
+| Finding | Disposition |
+|---|---|
+| C1 caps fail memory and the 120 s timeout (999,960 triangles: 5 min 52 s, 1,113,140 KB) | Folded with the controller's rulings: 300,000 per job, 150,000 per part, 30 copies, 240 s plate timeout, explicit tessellation; measurement moved to Task 0 with a 900 MB / 180 s stop rule; V17 timed. Spec 3.3, 4.1, 5 updated |
+| M1 test bed redirect test not "unchanged" | Folded (Task 3): `ExportHTTPError` is a `RuntimeError` with the test bed's messages; the test keeps passing unchanged, or its change is made in Task 3 |
+| M2 STL `Accept` dropped | Folded (Task 3): `headers=` on the helper, `STL_ACCEPT` on every hop, a spy test |
+| M3 cassettes split by concern | Folded (Tasks 4, 6): one cassette per request flow, named in every test |
+| M4 error-line test fails on `fitLayoutCanvas` | Folded (Task 2): the rule and test cover writes only |
+| M5 cached answers miss new parts | Folded (R16, Task 4): a miss refetches once; two tests |
+| M6 developer guide keeps stage 1 text | Folded (R14, R15, Task 15 Step 5): an explicit sweep list; `/print/part` stays ungated |
+| M7 Send to Printer with plate jobs untested | Folded (Tasks 2, 10; V22) |
+| m1–m11 | Folded: R1 reason (m1), Task 14 test (m2), R17 (m3), Task 5 (m4), Task 8 (m5, m6), Task 1 (m7), Task 14 (m8), Task 16 Step 5 (m9), V20 and V23–V25 (m10), Task 4 (m11) |
+| Lenses 1–3 | Folded: spec section 10 and route table gain `/print/deliver`; labels live in JS only; the one-worker assumption is written in `part_store.py` and `ElementCache` |
+| R7 timing, R13 flat estimate | Rejected rulings replaced: Task 0; per-scenario estimates in Task 16 |
 
 ## Consumed from the test bed
 
@@ -146,7 +178,7 @@ The spec leaves these open or contradicts itself; the plan rules as follows.
   selectParts, deselect, reloadPanel}`.
 - `testbed.messages`: `load_message_log(name, directory=MESSAGE_DIR)`.
 
-## Before Task 1
+## Before Task 0
 
 - [ ] Confirm the test bed plan is through Task 13: `testbed/scenarios/__init__.py`,
   `testbed/browser.py` and `docs/ONSHAPE_TEST_BED.md` exist, and `make test` and
@@ -162,7 +194,7 @@ print/
   events.py            print events: quoting, line format, metrics (Task 1)
   routes.py            page id gate, request lines, new routes, worker (Tasks 1–3, 6, 10, 14)
   onshape_parts.py     panel context, REST address, redirect helper, resolution, export (Tasks 3, 4)
-  limits.py            every section 5 limit and its sentence (Task 5)
+  limits.py            numeric limits, timeout, tessellation (Task 0); sentences (Task 5)
   mesh.py              numpy STL read, size, six footprints (Task 5)
   part_store.py        PartStore: refs, owner page id, limits, expiry, orphans (Task 5)
   plate.py             orientations (Task 5); copy matrix, labels, placement rules (Task 8)
@@ -170,6 +202,7 @@ print/
   plate_job.py         PlateJob and run_plate_job, the worker's plate path (Task 10)
   print_config.py      catalog, team choices, overrides (Task 14)
   slicer.py            + SliceProfiles, slice_plate, Orca code messages (Task 9)
+  tests/test_limits.py the limits' relations and the measuring script's meshes (Task 0)
   jobs.py              submit(payload), sizing note (Tasks 9, 10)
   static/print_onshape.js   Onshape messages, selection, dialog (Task 7)
   static/plate_geometry.js  JS mirror of plate.py, arrangeCopies (Task 8)
@@ -180,19 +213,96 @@ print/
   static/printer_panel.js   errors through showError, deliver report (Task 2)
   templates/print_wizard.html  new elements and scripts (Tasks 2, 3, 7, 11, 15)
   scripts/flatten_orca_profiles.py  + name index and catalog (Task 13)
-  scripts/measure_plate.py  slices a plate at the caps, prints peak memory and time (Task 9)
+  scripts/measure_plate.py  slices plates at the limits, prints peak memory and time (Task 0; Task 9 moves it onto the writer)
   profiles/catalog/    index.json, printer/, filament/, process/ (Task 13, committed)
   tests/fixtures/plate_cases.json   shared Python/JS placement cases (Task 8)
+  tests/fixtures/make_rotated_cases.py  computes the rotated cases' numbers (Task 8)
   tests/fixtures/orca_tree/         a tiny fake Orca profile tree (Task 13)
-testbed/tests/fixtures/make_print_fixtures.py  writes the synthetic print cassettes and message log (Tasks 4, 7)
+testbed/tests/fixtures/make_print_fixtures.py  writes the synthetic print cassettes, one per request flow, and the message log (Tasks 4, 6, 7, 16)
 testbed/scenarios/__init__.py  + four print scenarios (Task 16)
 testbed/tests/browser_print.py  print browser scenarios (Task 16)
 ```
 
 Outside `print/` and `testbed/`: `onshape_integration.py` and `frc_cam_gui_app.py`
-(Task 3), `team_config.py` (Task 14), `docs/3D_PRINTING.md` (Tasks 2, 6, 10, 13, 14),
+(Task 3), `team_config.py` (Task 14), `docs/3D_PRINTING.md` (Tasks 2, 6, 10, 13, 14, 15),
 `CLAUDE.md` key files (Task 16), `Makefile` only if a new slow test module is added (none
 planned: slow tests join `print/tests/orca_integration_test.py`).
+
+---
+
+## Sub-project: limits first
+
+### Task 0: Measure a plate at the limits
+
+Runs first, before the part store (Task 5) and anything that depends on the caps. It needs
+only Orca and synthetic meshes. The plan review measured 30 copies at 999,960 triangles in
+all: 5 min 52 s and 1,113,140 KB peak, past the 120 s slice timeout; at 249,960 triangles,
+43 s and 732,988 KB. The caps below follow from those figures; this task confirms them on
+the real limits before anything is built on them.
+
+**Files:**
+- Create: `print/limits.py` (numeric limits only; Task 5 adds the sentences),
+  `print/scripts/measure_plate.py`, `print/tests/test_limits.py`
+- Modify: `print/jobs.py` (sizing note)
+
+**Interfaces:**
+- Produces (`print/limits.py`):
+  - `MAX_PART_TRIANGLES = 150_000`; `MAX_PART_BYTES = 84 + 50 * MAX_PART_TRIANGLES` (7,500,084)
+  - `MAX_PARTS_PER_PAGE = 20`; `MAX_PAGE_BYTES = 50_000_000`
+  - `MAX_COPIES = 30`; `MAX_QUANTITY = 30`; `MAX_JOB_TRIANGLES = 300_000`
+  - `PLATE_SLICE_TIMEOUT_S = 240` (the sample part keeps `print.slicer.DEFAULT_TIMEOUT_S = 120`)
+  - `MAX_STORE_BYTES = 500_000_000`; `PART_TTL_S = 3600`
+  - `STL_CHORD_TOLERANCE_M = 0.00005` (0.05 mm) and `STL_ANGLE_TOLERANCE_RAD = 0.1309`
+    (7.5°, 48 segments on every hole), passed as the export's `chordTolerance` and
+    `angleTolerance`. Onshape's OpenAPI documents the units (metres; radians, under π/2)
+    but not the server's defaults, so the print path never relies on them.
+  - `MEASURE_MAX_PEAK_KB = 921_600` (900 MB) and `MEASURE_MAX_SECONDS = 180`: the stop rule.
+- Produces (`print/scripts/measure_plate.py`, Flask-free, standard library and numpy):
+  - `cylinder_stl(radius_mm, height_mm, segments) -> bytes`: a closed binary STL with
+    `4 * segments` triangles and real normals.
+  - `write_measure_3mf(path, stl: bytes, centres: list[tuple[float, float]]) -> list[str]`:
+    a minimal 3MF (`[Content_Types].xml`, `_rels/.rels`, `3D/3dmodel.model`,
+    `unit="millimeter"`) with one `<object>` per copy named `Hub #<n>` and one translated
+    `<build><item>` per copy. Returns the names.
+  - `PLATES = {'thirty': 30 copies of a 36 mm × 20 mm cylinder with 2,500 segments
+    (10,000 triangles each, 300,000 in all) in a 6 × 5 grid at 50 mm pitch from (40, 40);
+    'two-big': 2 copies of a 36 mm × 20 mm cylinder with 37,500 segments (150,000 each,
+    300,000 in all) at (100, 100) and (200, 100)}`. `--triangles N` scales `thirty`'s
+    segments to `N / 120` (rounded down), for the stop rule.
+  - `main()`: `--plate thirty|two-big [--triangles N]`; slices with the `build_command`
+    form of `print/slicer.py` (default profiles, the slicer's environment), `--arrange 0
+    --orient 0`, timeout `PLATE_SLICE_TIMEOUT_S`; checks `Metadata/plate_1.json` lists every
+    name; prints one line
+    `plate=thirty copies=30 triangles=300000 seconds=… peak_kb=… exit=0 names=ok verdict=ok|over`,
+    with `peak_kb` from `resource.getrusage(RUSAGE_CHILDREN).ru_maxrss` (kilobytes on
+    Linux). One plate per invocation, because `ru_maxrss` is a maximum over all children.
+    Exit status 1 when the verdict is `over`.
+
+- [ ] **Step 1: Write the failing tests** in `print/tests/test_limits.py` (quick; no Orca):
+  - `test_part_bytes_follow_part_triangles` (`MAX_PART_BYTES == 7_500_084`)
+  - `test_one_part_always_fits_a_job` (`MAX_JOB_TRIANGLES >= MAX_PART_TRIANGLES`)
+  - `test_plate_timeout_longer_than_sample_timeout`
+  - `test_tessellation_values_valid` (`0 < STL_ANGLE_TOLERANCE_RAD < math.pi / 2`,
+    `0 < STL_CHORD_TOLERANCE_M < 0.001`)
+  - `test_cylinder_triangle_count` (2,500 segments → 10,000 triangles; the binary length
+    rule of `print.slicer._binary_triangle_count` holds)
+  - `test_measure_3mf_one_object_per_copy` (three centres → three objects `Hub #1`…`Hub #3`,
+    three items whose translations are the centres)
+- [ ] **Step 2: Run** `uv run python -m unittest print.tests.test_limits -v`. Expect FAIL.
+- [ ] **Step 3: Implement** `limits.py` and `measure_plate.py`. Run the module and
+  `make test-quick`. Expect PASS.
+- [ ] **Step 4: Measure** (each well under four minutes):
+  `uv run python print/scripts/measure_plate.py --plate thirty` and
+  `uv run python print/scripts/measure_plate.py --plate two-big`. Record both lines in
+  `print/jobs.py`'s sizing note beside the 93 MB figure, neutrally ("30 copies, 300,000
+  triangles: … MB peak, … s on an aarch64 Linux machine").
+  **Stop rule:** if either plate exceeds `MEASURE_MAX_PEAK_KB` or `MEASURE_MAX_SECONDS`,
+  rerun `--plate thirty --triangles N` stepping N down by 25,000 until a run is inside both;
+  set `MAX_JOB_TRIANGLES` to the largest N that fits, record that run in the sizing note,
+  and report the value to the controller, who updates the spec's section 5 table. If
+  `two-big` itself is over, or N would fall below `MAX_PART_TRIANGLES`, stop and report:
+  the per-part cap must come down too, which is the controller's decision.
+- [ ] **Step 5: Commit** `print: limits module and a plate measured at the limits`.
 
 ---
 
@@ -228,8 +338,9 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
   - `_page_id() -> str | None`: the `X-Print-Page` header, or for `GET` the `pid` query
     parameter (R4), passed through `valid_page_id`.
   - `_page_id_gate() -> tuple | None`: `(jsonify({'error': PAGE_ID_MESSAGE}), 400)` when
-    `_page_id()` is None. Applied to every print-blueprint route except `GET /print` and
-    the blueprint's static endpoint, after the session gate.
+    `_page_id()` is None. Applied to every print-blueprint route except `GET /print`,
+    `GET /print/part` (R15: ungated, the upload mode's sample part) and the blueprint's
+    static endpoint, after the session gate where the route has one.
   - `_team_for_events() -> int | None`: `None` when `session.get('using_default_config')`,
     else `session.get('team_number')`.
   - A blueprint `after_request` hook writing `print_event('request', pid=…, team=…,
@@ -262,12 +373,16 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
     no header → 400 and `PAGE_ID_MESSAGE`; `X-Print-Page: ABCDEF012345` (upper case) → 400.
   - `test_get_accepts_pid_query`: `GET /print-job/nope?pid=abcdef012345` → 404 (past the gate).
   - `test_print_page_needs_no_page_id`: `GET /print` → 200.
+  - `test_sample_part_route_stays_ungated` (R15): `GET /print/part` with no session and no
+    page id → 200, as today.
   - `test_request_line_logs_rule_not_path`: after `GET /print-job/<full id>?pid=…`, the
     captured lines contain `rule=/print-job/<job_id>` and do not contain the full id.
   - `test_team_dash_on_default_config`: session `using_default_config=True`,
     `team_number=6238` → the line has `team=-`.
-  - `test_slice_events_replace_print_job_metric`: submitting a sample job with a mocked
-    metrics records `print_slice_queued` and `print_slice_done`, never `print_job`.
+  - `test_slice_events_replace_print_job_metric`: the pool built with
+    `make_worker(...)` (not `PrintRouteBase`'s `good_worker`, which logs nothing) and
+    `print.routes.slice_stl` mocked to return a fake result; submitting a sample job with a
+    mocked metrics records `print_slice_queued` and `print_slice_done`, never `print_job`.
 - [ ] **Step 3: Run** `uv run python -m unittest print.tests.test_events print.tests.test_routes_events -v`.
   Expect FAIL (no module `print.events`).
 - [ ] **Step 4: Implement** `print/events.py` and the `routes.py` changes. Update
@@ -282,7 +397,8 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
 - Modify: `print/static/print_wizard.js`, `print/static/printer_panel.js`,
   `print/routes.py` (`POST /print/page`, `POST /print/client-event`, `POST /print/deliver`),
   `print/tests/js/print_wizard.test.js`, `print/tests/test_routes_events.py`,
-  `print/tests/test_printer_panel.py` (if it asserts the old error path),
+  `print/tests/printer_panel/printer_panel.test.mjs` (the panel's node tests;
+  `print/tests/test_printer_panel.py` only runs them under `make test`),
   `docs/3D_PRINTING.md` (new section "Support: reading the print logs")
 
 **Interfaces:**
@@ -309,7 +425,8 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
     (`#<step>-errors`, steps `setup`, `parts`, `layout`, `preview`), clears that step's
     status line, and posts `{step, message, code}` to `/print/client-event` (failures of
     that post are ignored). `clearError(step)` empties it. These two are the only code that
-    touches an error line.
+    **writes** an error line; reading one is allowed (`fitLayoutCanvas` reads
+    `#layout-errors` to size the canvas).
   - `window.PenguinCAM.showError = showError` and
     `window.PenguinCAM.reportDeliver(action, outcome)`, which posts `/print/deliver` with
     the current job id. Download reports `started`; Drive reports `ok` or `failed`.
@@ -325,12 +442,20 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
 - [ ] **Step 1: Write the failing node tests:**
   - in `print_wizard.test.js`: `makePageId returns 12 lowercase hex characters` (a fake
     `getRandomValues` filling `[0,1,0xab,0xcd,0xef,0xff]` gives `0001abcdefff`).
-  - `error_paths.test.js`: `only showError and clearError touch an error line`. Read
-    `print_wizard.js`, `print_onshape.js` and `print_layout.js` (those that exist) as text;
-    find every occurrence of `-errors`; assert each lies inside the body of `showError`
-    or `clearError` (located by brace matching from `function showError(` /
-    `function clearError(`). Also assert no `.textContent =` assignment targets a variable
-    named `errs`.
+  - `error_paths.test.js`: `only showError and clearError write an error line`. Read
+    `print_wizard.js`, `print_onshape.js` and `print_layout.js` (those that exist) as text.
+    Collect the error-line handles: every variable assigned from an expression containing
+    `-errors` (for example `var errors = $('#layout-errors')`, `errs = $('#preview-errors')`)
+    and every direct `$('#…-errors')` expression. Assert that every **write** to a handle
+    (`.textContent =`, `.innerHTML =`, `.innerText =`, `.append(`, `.appendChild(`,
+    `.insertAdjacent`) lies inside the body of `showError` or `clearError` (located by
+    brace matching from `function showError(` / `function clearError(`). Reads such as
+    `fitLayoutCanvas`'s `errors.offsetHeight` pass. A self-check feeds the scanner a
+    snippet with a stray `errs.textContent = 'x'` and expects one violation.
+  - in `printer_panel.test.mjs`: `send reports queued, refused and unreachable through
+    reportDeliver` (a fake `window.PenguinCAM.reportDeliver` records its calls; fake fetch
+    answers 200, 400 and a rejected promise) and `errorBox delegates to showError when it
+    exists`.
 - [ ] **Step 2: Write the failing route tests** in `test_routes_events.py`:
   `test_client_event_logs_quoted_message` (message `'Bad\nthing'` arrives as one line),
   `test_client_event_rejects_extra_keys`, `test_client_event_cuts_to_300`,
@@ -387,16 +512,26 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
     `OnshapeClient._wvm_path(did, w, v, m)` (the static method, imported from
     `onshape_integration`), derives `wvm`/`wvm_id` from its result; raises
     `NoOnshapeContext` when it raises `ValueError` or `documentId`/`elementId` is empty.
-  - `DownloadTooLarge(Exception)`, `ExportHTTPError(Exception)` with `status`.
-  - `fetch_following_redirects(client, path: str, params: dict | None = None, *, byte_cap: int | None = None, max_hops: int = 3) -> tuple[bytes, list[str]]`:
-    first `client._make_api_request('GET', path, params=params, allow_redirects=False, stream=True)`;
-    on 301/302/303/307/308 with `Location`, a host equal to `onshape.com` or ending in
-    `.onshape.com` is fetched with `client.request_absolute('GET', url, allow_redirects=False, stream=True)`,
-    any other host with `client.session.get(url, allow_redirects=False, stream=True)` and no
-    auth. Returns the final body and the hop URLs. A final status outside 200–299 raises
-    `ExportHTTPError(status)`; more than `max_hops` hops raises `ExportHTTPError(310)`. The
-    body is read with `iter_content(65536)`; past `byte_cap` the response is closed and
+  - `DownloadTooLarge(Exception)`.
+  - `ExportHTTPError(RuntimeError)` with `status` and a message, so the test bed's
+    `assertRaisesRegex(RuntimeError, …)` lines keep passing unchanged. Three cases, three
+    messages: more than `max_hops` hops → status 310, message
+    `"export still redirects after {max_hops} hops"` (contains `redirect`); a 3xx with no
+    `Location` → status of that answer, message `"export answered {status} without Location"`;
+    any other final status outside 200–299 → `"export answered HTTP {status}"`.
+  - `fetch_following_redirects(client, path: str, params: dict | None = None, *, headers: dict | None = None, byte_cap: int | None = None, max_hops: int = 3) -> tuple[bytes, list[str]]`:
+    first `client._make_api_request('GET', path, params=params, headers=headers, allow_redirects=False, stream=True)`;
+    on 301/302/303/307/308 with `Location` (joined to the answer's URL), a host equal to
+    `onshape.com` or ending in `.onshape.com` is fetched with
+    `client.request_absolute('GET', url, headers=headers, allow_redirects=False, stream=True)`,
+    any other host with `client.session.get(url, headers=headers, allow_redirects=False, stream=True)`
+    and no auth. `headers` go on the request and on every hop. Returns the final body and
+    the hop URLs; raises `ExportHTTPError` as above, the loop case before a fourth hop is
+    sent (so the request and three hops are sent, as the test bed asserts). The body is read
+    with `iter_content(65536)`; past `byte_cap` the response is closed and
     `DownloadTooLarge` raised.
+  - `STL_ACCEPT = 'application/vnd.onshape.v1+octet-stream'` (moved from the test bed's
+    `_STL_ACCEPT`).
 - Produces (`print/routes.py`):
   `init_print_routes(app, *, limiter, require_session, has_onshape_session, onshape_client, token_manager, upload_folder, output_folder, template_context, metrics, log, pool=None, part_store=None)`;
   `ctx.has_onshape_session`, `ctx.onshape_client`. `print_page` puts
@@ -405,10 +540,14 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
 - `frc_cam_gui_app.py`: passes `has_onshape_session=_has_onshape_session` and
   `onshape_client=lambda: session_manager.get_client(get_current_user_id()) if ONSHAPE_AVAILABLE else None`.
 - `testbed/scenarios/__init__.py`: `export_part_stl(client, doc, part_id, params)` builds its
-  path as before and returns `fetch_following_redirects(client, path, params)`; its own
-  redirect loop is deleted. The test bed test
-  `test_export_follows_redirect_and_reattaches_auth_only_for_onshape` must keep passing
-  unchanged.
+  path as before and returns
+  `fetch_following_redirects(client, path, params, headers={'Accept': STL_ACCEPT})`; its
+  own redirect loop, `_STL_ACCEPT` and `_auth_for` (if nothing else uses it) are deleted.
+  The test bed's redirect tests in `testbed/tests/test_scenarios.py` keep their contract
+  and pass **unchanged**: bodies, hop lists, auth only on `*.onshape.com`, four requests
+  for the loop, `RuntimeError` matching `redirect` for the loop and `307 without Location`
+  for the bare 307. If the implementation cannot keep a line of that test, the change to
+  it is made in this task and named in the commit message.
 
 - [ ] **Step 1: Write the failing tests.** `tests/test_onshape_request_absolute.py`
   (requests mocked with `mock.patch.object(client.session, 'request')`):
@@ -432,6 +571,12 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
     `https://example.com/y`; assert `request_absolute` was called for the first hop only,
     with `mock.patch.object(client, 'request_absolute', wraps=…)`).
   - `test_byte_cap_stops_download` (body of 100 bytes, cap 50 → `DownloadTooLarge`).
+  - `test_headers_sent_on_request_and_every_hop`: with a spy on `ReplayAdapter.send` (as
+    the test bed's test does), every sent request of a 307 → 307 → 200 chain carries
+    `Accept: application/vnd.onshape.v1+octet-stream`. Replay matching ignores headers, so
+    only this spy can show a dropped header before a live run.
+  - `test_redirect_errors_are_runtime_errors_with_test_bed_messages`: loop → `RuntimeError`
+    matching `redirect`; bare 307 → matching `307 without Location`; a 500 → `HTTP 500`.
   - `test_print_page_passes_context_and_no_context_sentence` (Flask test client: a return
     URL with no workspace, version or microversion on `source=onshape` renders
     `NO_CONTEXT_MESSAGE` and `window.PenguinCAM.onshape`).
@@ -448,14 +593,15 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
 **Files:**
 - Modify: `print/onshape_parts.py`
 - Create: `print/tests/test_onshape_resolve.py`,
-  `testbed/tests/fixtures/make_print_fixtures.py`, and its output
-  `testbed/tests/fixtures/cassettes/synthetic-print-partstudio.json`,
-  `synthetic-print-configured.json`, `synthetic-print-assembly.json`,
-  `synthetic-print-dialog.json`, `synthetic-print-export.json` (+ `synthetic-print-export/NNN.bin`)
+  `testbed/tests/fixtures/make_print_fixtures.py`, and its output under
+  `testbed/tests/fixtures/cassettes/`: one cassette per end-to-end request flow (table
+  below), each `synthetic-print-<flow>.json` with its STL bodies in
+  `synthetic-print-<flow>/NNN.bin`
 
 **Interfaces:**
-- Consumes: `OnshapeAddress`, `fetch_following_redirects`, `DownloadTooLarge`,
-  `ExportHTTPError` (Task 3); test bed `Cassette`, `Exchange`, `ReplayAdapter`,
+- Consumes: `OnshapeAddress`, `fetch_following_redirects`, `STL_ACCEPT`,
+  `DownloadTooLarge`, `ExportHTTPError` (Task 3); `STL_CHORD_TOLERANCE_M`,
+  `STL_ANGLE_TOLERANCE_RAD` (Task 0); test bed `Cassette`, `Exchange`, `ReplayAdapter`,
   `set_current_scenario`.
 - Produces (`print/onshape_parts.py`):
   - `ELEMENT_CACHE_TTL_S = 600`
@@ -463,8 +609,8 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
     `part_id`, `configuration: str | None = None`, `link_document_id: str | None = None`;
     `to_json() -> dict` with keys `documentId`, `wvm`, `wvmId`, `elementId`, `partId`, and
     `configuration`/`linkDocumentId` only when set; `PartSource.from_json(d)` validates ids
-    (24 hex), `wvm` in `w|v|m`, and raises `ValueError` otherwise; `key()` returns the tuple
-    used for de-duplication.
+    (24 hex), `wvm` in `w|v|m`, cuts `configuration` to 2,000 characters, and raises
+    `ValueError` otherwise; `key()` returns the tuple used for de-duplication.
   - `ResolvedPart(name: str, source: PartSource, fallback_name: str | None = None)`:
     `fallback_name` is the dialog's `partName`, used by the `idTag` fallback.
   - `PartRefused(Exception)` with `message` and `name`.
@@ -480,8 +626,15 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
     `configuration_parameters(client, address) -> list` (`GET /elements/{element_path}/configuration`,
     `configurationParameters`), `assembly_definition(client, address) -> dict`
     (`GET /assemblies/{element_path}`, `configuration` param when set),
-    `parts_list(client, address) -> list[dict]` (`GET /parts/{element_path}`).
-    Module-level `ELEMENT_CACHE = ElementCache()`.
+    `parts_list(client, address) -> list[dict]` (`GET /parts/{element_path}`). Each method
+    takes `fresh=False`; `fresh=True` fetches past the cache and stores the new answer.
+    Module-level `ELEMENT_CACHE = ElementCache()`. The cache lives in process memory and
+    assumes the one-worker `Procfile`, like the part store.
+  - **Cache miss = refetch (R16).** When a selection's part id or `selectionId` is not in
+    the cached `parts_list`, or its `occurrencePath` does not resolve in the cached
+    `assembly_definition`, that answer is fetched once more with `fresh=True` before the
+    selection is refused. One refetch per request and element, however many selections
+    miss.
   - `resolve_selections(client, address: OnshapeAddress, selections: list[dict], via: str, cache=ELEMENT_CACHE) -> tuple[list[ResolvedPart], list[dict]]`.
     `via` is `selection`, `dialog` or `refresh`. Errors are `{'name'?: str, 'message': str}`.
     Rules (spec 3.3), per selection:
@@ -502,25 +655,49 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
     - `dialog`: any of `isSurface`, `isComposite`, `isSketch`, `isFlattenedBody` true →
       `NOT_SOLID_MESSAGE`. Source from the item: `documentId`; `wvm` `w` or `v` from
       `workspaceId`/`versionId`; `elementId`; `part_id = idTag`;
-      `configuration = elementConfiguration or None`; `link_document_id` as above.
+      `configuration = elementConfiguration or None`, cut to 2,000 characters;
+      `link_document_id` as above.
       `fallback_name = partName`. Name: `partName`.
     - `refresh`: each selection is `{source, name}`; `PartSource.from_json(source)`.
   - `ExportResult(stl: bytes, source: PartSource, calls: int, ms: int, hops: list[str])`
   - `ExportFailed(Exception)` (`name`, `status`, `reason`), `PartTooLarge(Exception)` (`name`),
     `OnshapeLimitReached(Exception)` (`name`).
-  - `STL_PARAMS = {'mode': 'binary', 'units': 'millimeter'}`
+  - `STL_PARAMS = {'mode': 'binary', 'units': 'millimeter', 'chordTolerance': f'{STL_CHORD_TOLERANCE_M:.5f}', 'angleTolerance': f'{STL_ANGLE_TOLERANCE_RAD:.4f}'}`
+    (the explicit print tessellation; spec 3.3).
   - `export_part_mesh(client, part: ResolvedPart, *, byte_cap: int, cache=ELEMENT_CACHE) -> ExportResult`:
-    `fetch_following_redirects(client, f"/parts/{…}/e/{eid}/partid/{pid}/stl", STL_PARAMS + configuration + linkDocumentId, byte_cap=byte_cap)`.
+    `fetch_following_redirects(client, f"/parts/{…}/e/{eid}/partid/{pid}/stl", STL_PARAMS + configuration + linkDocumentId, headers={'Accept': STL_ACCEPT}, byte_cap=byte_cap)`.
     A 402 → `OnshapeLimitReached`; `DownloadTooLarge` → `PartTooLarge`; another
     `ExportHTTPError` with `part.fallback_name` set → fetch `parts_list` for that element,
     match by `name`; exactly one → retry with its `partId` (and return that source); more
     than one → `PartRefused(DUPLICATE_NAME_MESSAGE)`; none or retry failure →
     `ExportFailed`. `calls` counts every HTTP call made, hops included.
-- `make_print_fixtures.py` writes the five cassettes with `synthetic=True` from the
+- `make_print_fixtures.py` writes the cassettes with `synthetic=True` from the
   documented OpenAPI shapes: ids are made-up 24-hex strings; STL bodies are binary boxes
   (10 × 20 × 30 mm and a 64-segment cylinder) with real normals. Paths carry the
-  `/api/v13` prefix. The export cassette: a 307 to `https://cad.onshape.com/api/v13/blob/…`
-  followed by a 200 with the STL body.
+  `/api/v13` prefix; export queries carry `STL_PARAMS`. Every export is a 307 to
+  `https://cad.onshape.com/api/v13/blob/…` followed by a 200 with the STL body. Replay
+  answers from the one current cassette (`set_current_scenario`), so **each cassette is
+  the whole call sequence of one end-to-end flow**, exports included, and each test names
+  its cassette. Flows (calls in order):
+
+  | Cassette | Calls | Used by |
+  |---|---|---|
+  | `synthetic-print-ps-one` | elements (`PARTSTUDIO`), configuration (empty), parts, export box (307, 200) | Task 4 part id and `selectionId` tests, `test_export_counts_calls_including_redirect`; Task 6 single-part tests |
+  | `synthetic-print-ps-two` | elements, configuration, parts, export box (307, 200), export cylinder (307, 200) | Task 6 two-part tests |
+  | `synthetic-print-ps-refresh` | export box (307, 200), export cylinder (307, 200) | Task 6 refresh request |
+  | `synthetic-print-ps-configured` | elements, configuration (one parameter) | configured Part Studio refused |
+  | `synthetic-print-ps-configured-passed` | elements, configuration, parts (with `configuration`), export (with `configuration`) | configuration passed through |
+  | `synthetic-print-ps-resolve-twice` | elements, configuration, parts; then elements, configuration, parts again | cache expiry |
+  | `synthetic-print-ps-cache-miss` | elements, configuration, parts (without the new part), parts (with it), export | R16 Part Studio |
+  | `synthetic-print-ps-402` | elements, configuration, parts, export answering 402 | limit reached |
+  | `synthetic-print-asm-one` | elements (`ASSEMBLY`), assembly definition, export (with `linkDocumentId`) | assembly occurrence |
+  | `synthetic-print-asm-sub` | elements, assembly definition with a subassembly, export | subassembly |
+  | `synthetic-print-asm-standard` | elements, assembly definition (standard content instance) | standard content refused |
+  | `synthetic-print-asm-cache-miss` | elements, assembly definition (without the instance), assembly definition (with it), export | R16 Assembly |
+  | `synthetic-print-dialog-one` | export by `idTag` (307, 200) | dialog `idTag` |
+  | `synthetic-print-dialog-fallback` | export by `idTag` (404), parts, export by matched `partId` (307, 200) | `idTag` fallback |
+  | `synthetic-print-dialog-duplicate` | export by `idTag` (404), parts with two parts of that name | duplicate names |
+  | `synthetic-print-none` | nothing: any call fails the test as unmatched | dialog surface, too many parts, sign-in gate |
 
 - [ ] **Step 1: Write the generator and run it**:
   `uv run python testbed/tests/fixtures/make_print_fixtures.py`. Each JSON has
@@ -529,23 +706,33 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
   client (helper `replay_client(scenario)`: `OnshapeClient.from_api_keys('k', 's')`,
   `ReplayAdapter()` mounted on `https://`, `settings.CASSETTE_DIR` patched,
   `set_current_scenario(scenario)`, a fresh `ElementCache()`):
-  - `test_partstudio_part_id_used_directly_and_named_from_parts_list`
-  - `test_partstudio_selection_id_matched_through_parts_list`
-  - `test_configured_partstudio_without_configuration_refused` (`CONFIGURED_MESSAGE`)
+  - `test_partstudio_part_id_used_directly_and_named_from_parts_list` (`synthetic-print-ps-one`)
+  - `test_partstudio_selection_id_matched_through_parts_list` (`synthetic-print-ps-one`)
+  - `test_configured_partstudio_without_configuration_refused` (`CONFIGURED_MESSAGE`;
+    `synthetic-print-ps-configured`)
   - `test_configured_partstudio_with_panel_configuration_passes_it_through`
-    (`source.configuration` equals the context's)
-  - `test_assembly_occurrence_maps_to_source_with_link_document`
-  - `test_subassembly_occurrence_followed`
-  - `test_standard_content_refused`
-  - `test_dialog_idtag_used_as_part_id`
+    (`source.configuration` equals the context's; `synthetic-print-ps-configured-passed`)
+  - `test_assembly_occurrence_maps_to_source_with_link_document` (`synthetic-print-asm-one`)
+  - `test_subassembly_occurrence_followed` (`synthetic-print-asm-sub`)
+  - `test_standard_content_refused` (`synthetic-print-asm-standard`)
+  - `test_dialog_idtag_used_as_part_id` (`synthetic-print-dialog-one`)
   - `test_dialog_idtag_fallback_matches_part_name` (first export 404, parts list has one
-    match, retry 307 → 200)
-  - `test_dialog_duplicate_names_refused`
-  - `test_dialog_surface_refused`
+    match, retry 307 → 200; `synthetic-print-dialog-fallback`)
+  - `test_dialog_duplicate_names_refused` (`synthetic-print-dialog-duplicate`)
+  - `test_dialog_surface_refused` (`synthetic-print-none`)
+  - `test_dialog_configuration_cut_to_2000` (`synthetic-print-none`, resolve only)
   - `test_element_type_cached_for_ten_minutes` (a fake clock: second resolve within 600 s
-    makes no elements call; after 601 s it does)
-  - `test_export_402_raises_limit_reached`
-  - `test_export_counts_calls_including_redirect` (`calls == 2`)
+    makes no call; after 601 s it fetches again; `synthetic-print-ps-resolve-twice`)
+  - `test_partstudio_cache_miss_refetches_once` (Review Focus 6: a part id missing from the
+    cached parts list is found in the refetched one and exported; `synthetic-print-ps-cache-miss`)
+  - `test_assembly_cache_miss_refetches_once` (Review Focus 6; `synthetic-print-asm-cache-miss`)
+  - `test_still_missing_after_refetch_refused` (`NOT_IN_ASSEMBLY_MESSAGE` after exactly one
+    refetch; `synthetic-print-asm-cache-miss` with an unknown path, its export left unanswered)
+  - `test_export_402_raises_limit_reached` (`synthetic-print-ps-402`)
+  - `test_export_counts_calls_including_redirect` (`calls == 2`; `synthetic-print-ps-one`)
+  - `test_export_asks_for_print_tessellation` (the export request's query carries `mode`,
+    `units`, `chordTolerance=0.00005` and `angleTolerance=0.1309`, read from a spy on
+    `ReplayAdapter.send`; `synthetic-print-ps-one`)
 - [ ] **Step 3: Run** `uv run python -m unittest print.tests.test_onshape_resolve -v`. Expect FAIL.
 - [ ] **Step 4: Implement** the resolution and export functions.
 - [ ] **Step 5: Run** the module and `make test-quick`. Expect PASS.
@@ -554,16 +741,16 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
 ### Task 5: Mesh, limits and the part store
 
 **Files:**
-- Create: `print/limits.py`, `print/mesh.py`, `print/part_store.py`, `print/plate.py`
+- Create: `print/mesh.py`, `print/part_store.py`, `print/plate.py`
   (orientations only), `print/tests/test_mesh.py`, `print/tests/test_part_store.py`
+- Modify: `print/limits.py` (created in Task 0: add the sentences)
 
 **Interfaces:**
-- Produces (`print/limits.py`), values and sentences from spec section 5:
-  - `MAX_PART_TRIANGLES = 250_000`; `MAX_PART_BYTES = 84 + 50 * MAX_PART_TRIANGLES` (12,500,084)
-  - `MAX_PARTS_PER_PAGE = 20`; `MAX_PAGE_BYTES = 50_000_000`
-  - `MAX_COPIES = 30`; `MAX_QUANTITY = 30`; `MAX_JOB_TRIANGLES = 1_000_000`
-  - `MAX_STORE_BYTES = 500_000_000`; `PART_TTL_S = 3600`
-  - `TOO_DETAILED_MESSAGE = "{name} is too detailed to print here (over 250,000 triangles)."`
+- Consumes: the numeric limits of `print/limits.py` (Task 0), with `MAX_JOB_TRIANGLES` as
+  Task 0's stop rule left it.
+- Produces (`print/limits.py`), sentences from spec section 5:
+  - `TOO_DETAILED_MESSAGE = "{name} is too detailed to print here (over 150,000 triangles)."`
+    (the number formatted from `MAX_PART_TRIANGLES`, so the two cannot differ)
   - `TOO_MANY_PARTS_MESSAGE = "Up to 20 different parts per print."`
   - `PAGE_BYTES_MESSAGE = "These parts are too large to slice together."`
   - `TOO_MANY_COPIES_MESSAGE = "Up to 30 copies per plate; print the rest in a second job."`
@@ -633,12 +820,17 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
       directories; deletes directories under `root` with no index entry whose mtime is
       older than `ttl_s`. Returns the count removed.
     - `start_sweeper(interval_s=600) -> threading.Thread` (daemon; logs and survives errors).
+    There is no start-up sweep: `UPLOAD_FOLDER` is a fresh `mkdtemp()` per process
+    (`frc_cam_gui_app.py`), so a new process has nothing to sweep; orphans arise only within
+    a process and the periodic pass removes them.
+  - The module docstring states that the index, like `ElementCache` and `JobPool`, lives in
+    process memory and assumes the one-worker `Procfile`.
 
 - [ ] **Step 1: Write the failing tests.** `test_mesh.py`:
   - `test_reads_binary_box_and_size` (10 × 20 × 30 box → `{x:10, y:20, z:30}`, 12 triangles)
   - `test_ascii_or_truncated_refused`
-  - `test_triangle_cap`: a header claiming 250,001 triangles with that length →
-    `TOO_DETAILED_MESSAGE` with the name.
+  - `test_triangle_cap`: a header claiming 150,001 triangles with that length →
+    `TOO_DETAILED_MESSAGE` with the name and `150,000`.
   - `test_tiny_part_refused`
   - `test_footprints_six_orientations`: for the 10 × 20 × 30 box, `+z` hull spans 10 × 20
     and height 30; `+x` spans 30 × 20 and height 10; `-y` spans 10 × 30 and height 20;
@@ -696,20 +888,27 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
     `part_store.get(ref, pid)` or 404; `send_file(entry.stl_path, mimetype='model/stl')`.
 
 - [ ] **Step 1: Write the failing tests** (Flask test client, `ctx.onshape_client` patched to
-  return a replay client on the synthetic cassettes, `ctx.has_onshape_session` patched,
-  `ctx.part_store` a temp `PartStore`):
+  return a replay client, `ctx.has_onshape_session` patched, `ctx.part_store` a temp
+  `PartStore`, a fresh `ElementCache` per test). Each `POST /print/onshape/parts` replays
+  one Task 4 flow cassette, named here; `set_current_scenario` is called before each
+  request:
   - `test_signin_gate_401_with_code` (an `app_verified` session without Onshape → 401
-    `signin_expired`)
-  - `test_two_parts_listed_with_sizes_triangles_and_footprints`
-  - `test_same_source_returns_existing_ref` (Review Focus 5: posting the same selection
-    twice answers the same `ref`; the second request makes no export call)
-  - `test_refresh_issues_new_refs_and_supersedes_old` (old ref still served by the STL route)
-  - `test_errors_are_sentences` (configured Part Studio → `CONFIGURED_MESSAGE` in `errors`)
-  - `test_too_many_parts_refused_before_export`
-  - `test_402_gives_limit_sentence`
-  - `test_stl_route_owner_only` (other pid → 404)
-  - `test_export_events_logged_without_secrets` (captured lines contain `[PRINT] export`
-    with `calls=2`, and no `Authorization`, access key or cookie value)
+    `signin_expired`; `synthetic-print-none`)
+  - `test_two_parts_listed_with_sizes_triangles_and_footprints` (`synthetic-print-ps-two`)
+  - `test_same_source_returns_existing_ref` (Review Focus 5: first request
+    `synthetic-print-ps-one`, then the same selection again under `synthetic-print-none`,
+    so any call fails; the second answer has the same `ref`)
+  - `test_refresh_issues_new_refs_and_supersedes_old` (first `synthetic-print-ps-two`, then
+    the refresh under `synthetic-print-ps-refresh`; the old ref is still served by the STL
+    route)
+  - `test_errors_are_sentences` (configured Part Studio → `CONFIGURED_MESSAGE` in `errors`;
+    `synthetic-print-ps-configured`)
+  - `test_too_many_parts_refused_before_export` (`synthetic-print-none`)
+  - `test_402_gives_limit_sentence` (`synthetic-print-ps-402`)
+  - `test_stl_route_owner_only` (other pid → 404; parts added under `synthetic-print-ps-one`)
+  - `test_export_events_logged_without_secrets` (`synthetic-print-ps-one`; captured lines
+    contain `[PRINT] export` with `calls=2`, and no `Authorization`, access key or cookie
+    value)
 - [ ] **Step 2: Run** `uv run python -m unittest print.tests.test_routes_parts -v`. Expect FAIL.
 - [ ] **Step 3: Implement** the routes and wiring.
 - [ ] **Step 4: Docs.** "Parts from Onshape": the two ways of picking, one export per
@@ -740,7 +939,11 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
   - `createOnshapeMessenger({context, post, onSelections}) -> messenger`, where
     `post(message, targetOrigin)` and `onSelections(selections, via)`; every message
     carries `documentId`, `workspaceId`, `elementId` from `context`; `targetOrigin` is
-    `context.server`. Methods:
+    `'*'` (R17: as `static/source_onshape.js` posts; the messages carry no secret, and a
+    return URL without `server` on an enterprise domain would otherwise drop every
+    message). `isOnshapeOrigin(origin, server) -> bool` (exported): true for `server`, or
+    for an `https://` origin whose host is `onshape.com` or ends in `.onshape.com`.
+    Methods:
     - `init()` posts `applicationInit`;
     - `enterParts()` marks active and arms: `requestSelection` with
       `messageId: 'penguincam-print-<n>'`, `filterType: 'simple'`,
@@ -749,7 +952,8 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
     - `leaveParts()` marks inactive, posts `stopRequest`, and `closeSelectItemDialog` when
       the dialog is open;
     - `openDialog()` posts `openSelectItemDialog` with `selectParts: true, selectMultiple: true`;
-    - `handleMessage(event)`: drops any `event.origin !== context.server`;
+    - `handleMessage(event)`: drops any event for which
+      `isOnshapeOrigin(event.origin, context.server)` is false;
       `REQUESTED_SELECTION` only while active: `PENDING` ignored, empty → re-arm,
       otherwise `onSelections(partSelectionsFromMessage(data), 'selection')` and re-arm;
       `SELECTION` ignored; `itemSelectedInSelectItemDialog` →
@@ -782,7 +986,10 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
 
 - [ ] **Step 1: Write the failing node tests.** `print_onshape.test.js` (fake `post`
   collecting messages; the synthetic log provides answer shapes):
-  - `every message carries the three ids and goes to the server origin`
+  - `every message carries the three ids and is posted to '*'`
+  - `isOnshapeOrigin accepts the server and onshape.com hosts only` (`https://cad.onshape.com`,
+    `https://acme.onshape.com` yes; `http://cad.onshape.com`, `https://onshape.com.evil.io`,
+    `https://evilonshape.com` no)
   - `enterParts arms a count-1 solid body selection`
   - `an answer adds selections and re-arms`
   - `an empty answer re-arms and adds nothing`
@@ -810,9 +1017,9 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
 ### Task 8: Plate geometry, once in Python and once in JavaScript
 
 **Files:**
-- Create: `print/plate.py`, `print/static/plate_geometry.js`,
-  `print/tests/fixtures/plate_cases.json`, `print/tests/test_plate.py`,
-  `print/tests/js/plate_geometry.test.js`
+- Create: `print/static/plate_geometry.js`,
+  `print/tests/fixtures/plate_cases.json`, `print/tests/fixtures/make_rotated_cases.py`,
+  `print/tests/test_plate.py`, `print/tests/js/plate_geometry.test.js`
 - Modify: `print/plate.py` (created in Task 5), `print/routes.py`
   (`POST /print/page` answers `plate` and `limits`)
 
@@ -820,8 +1027,11 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
 - Produces (`print/plate.py`; the JS file exports the camelCase twin of each):
   - `SPACING_MM = 5.0`, `MARGIN_MM = 3.0`, `EPS_MM = 1e-6`
   - `ORIENTATIONS` and `ORIENTATION_MATRICES` from Task 5 (the JS file copies the table).
-  - `ORIENTATION_LABELS = {'+z': 'as modelled', '-z': 'upside down', '+x': 'on its side (x)', '-x': 'on its side (−x)', '+y': 'on its side (y)', '-y': 'on its side (−y)'}`
-    (JS only needs the labels in the browser; Python keeps them for the docs and tests.)
+  - `ORIENTATION_LABELS`, **in `plate_geometry.js` only** (the browser is their only
+    user, so there is no Python copy to drift): each names the face that rests on the plate,
+    as spec 4.5 asks. With R2 (the named axis points up) the resting face is the opposite
+    one: `{'+z': 'as modelled', '-z': 'upside down', '+x': 'on its side, −x face down', '-x': 'on its side, +x face down', '+y': 'on its side, −y face down', '-y': 'on its side, +y face down'}`.
+    The docs (Task 10) copy this table.
   - `copy_matrix(orientation: str, angle: float, offset: list[float], x: float, y: float) -> list[list[float]]`:
     3×4 `[M | t]` with `M = Rz(angle) · R_o`, `Rz` counterclockwise in degrees, and
     `t = (x, y, 0) − Rz(angle) · offset`, so `p_plate = M · p_part + t` (R10).
@@ -869,14 +1079,19 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
   `Bracket #3` from two refs; Review Focus 1). Sanitize cases include
   `"Bracket (v2) – left"` → `Bracket__v2____left`, `""` → `part`, a 60-character name cut to 40.
 
-- [ ] **Step 1: Write the shared cases** (values computed by hand; boxes and rectangles
-  keep the arithmetic exact).
+- [ ] **Step 1: Write the shared cases.** Axis-aligned boxes and rectangles are computed
+  by hand and keep the arithmetic exact. The rotated cases (`off_plate_after_45_rotation`,
+  `rotated_near_miss`) have irrational coordinates: `make_rotated_cases.py` (committed,
+  shapely) computes their placements and hull distances and writes them into
+  `plate_cases.json`, rounded to 1e-6; each such case keeps at least 0.1 mm between its
+  distance and the spacing or margin, so rounding cannot flip a verdict.
 - [ ] **Step 2: Write the failing tests.** `test_plate.py`: `test_shared_cases` (each case's
   problems equal, messages included), `test_shared_matrices` (within 1e-9),
   `test_shared_labels_and_sanitize`, `test_matrices_put_named_axis_up`
   (`M · axis == (0, 0, 1)` for every orientation), `test_plate_from_default_printer`
   (`min [0,0]`, `max [340,320]`, height 340). `plate_geometry.test.js`: the same four
-  shared tests, plus `arrangeCopies places six 40 mm squares in two rows`,
+  shared tests, plus `orientation labels cover the six orientations`,
+`arrangeCopies places six 40 mm squares in two rows`,
   `arrangeCopies leaves what does not fit unplaced beside the plate`,
   `arrangeCopies keeps orientation and angle`, `arranged copies pass checkPlacement`.
 - [ ] **Step 3: Run** `uv run python -m unittest print.tests.test_plate -v` and
@@ -887,9 +1102,10 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
 ### Task 9: The 3MF writer and slicing a plate
 
 **Files:**
-- Create: `print/plate_3mf.py`, `print/tests/test_plate_3mf.py`, `print/scripts/measure_plate.py`
+- Create: `print/plate_3mf.py`, `print/tests/test_plate_3mf.py`
 - Modify: `print/slicer.py`, `print/tests/test_slicer.py`,
-  `print/tests/orca_integration_test.py`, `print/jobs.py` (sizing note)
+  `print/tests/orca_integration_test.py`, `print/scripts/measure_plate.py` (Task 0),
+  `print/tests/test_limits.py`, `print/jobs.py` (sizing note)
 
 **Interfaces:**
 - Consumes: `copy_matrix`, `copy_labels`, `sanitize_part_name` (Task 8); `read_binary_stl` (Task 5).
@@ -926,15 +1142,17 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
   - `build_plate_command(model_3mf: Path, profiles: SliceProfiles, output_dir: Path) -> list[str]`:
     the `build_command` form with these profile paths and `--arrange 0 --orient 0`; the
     archive is `plate.gcode.3mf`.
-  - `slice_plate(model_3mf, profiles: SliceProfiles, output_dir, timeout_s=DEFAULT_TIMEOUT_S) -> SliceResult`:
+  - `slice_plate(model_3mf, profiles: SliceProfiles, output_dir, timeout_s=PLATE_SLICE_TIMEOUT_S) -> SliceResult`
+    (240 s from `print/limits.py`; `slice_stl` keeps `DEFAULT_TIMEOUT_S = 120`):
     the `slice_stl` environment and error handling; a non-zero exit raises
     `SliceError(ORCA_CODE_MESSAGES.get(code, "The slicer could not process this part."), details, code)`.
     The shared subprocess part of `slice_stl` and `slice_plate` becomes one private
     function; `slice_stl` keeps its behaviour.
-- `print/scripts/measure_plate.py`: writes 30 copies of a 36 mm × 20 mm cylinder with
-  8,333 segments (33,332 triangles each, 999,960 in all) in a 6 × 5 grid at 50 mm pitch,
-  slices it with `DEFAULT_PROFILES`, and prints wall time and the child's peak RSS
-  (`resource.getrusage(RUSAGE_CHILDREN).ru_maxrss`, kilobytes on Linux).
+- `print/scripts/measure_plate.py` (Task 0) drops its own 3MF writer and command: it
+  builds the plates as `copies`/`parts` and calls `write_plate_3mf` and `slice_plate`, so
+  the measurement covers the code that ships. Its plates, output line and stop-rule
+  constants are unchanged. `write_measure_3mf` and its test in `test_limits.py` are
+  deleted; `test_plate_3mf.py` covers one object per copy.
 
 - [ ] **Step 1: Write the failing unit tests.** `test_plate_3mf.py`:
   - `test_one_object_per_copy_named_with_labels` (two parts, quantities 2 and 1 → objects
@@ -951,6 +1169,7 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
   - `test_name_guard_catches_missing_and_blank`
 
   `test_slicer.py`: `test_plate_command_disables_arrange_and_orient`,
+  `test_slice_plate_default_timeout_is_plate_timeout` (240 s; `slice_stl`'s stays 120 s),
   `test_orca_codes_map_to_messages` (fake `result.json` with -101, -52, -100, -50, -6),
   `test_return_code_from_exit_status_when_no_result_json` (exit 155 → -101).
 - [ ] **Step 2: Write the failing Orca tests** in `orca_integration_test.py`, class
@@ -965,12 +1184,12 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
 - [ ] **Step 3: Run** the unit modules and `make test`. Expect FAIL.
 - [ ] **Step 4: Implement** `plate_3mf.py` and the slicer changes.
 - [ ] **Step 5: Run** `make test`. Expect PASS.
-- [ ] **Step 6: Measure.** `uv run python print/scripts/measure_plate.py`. Record peak RSS
-  and wall time in `print/jobs.py`'s sizing note beside the 93 MB figure, neutrally
-  ("30 copies, 999,960 triangles: … MB peak, … s on an aarch64 Linux machine"). **If the
-  peak exceeds 1 GB, stop and report**: lower `MAX_COPIES` and `MAX_JOB_TRIANGLES` in
-  `print/limits.py` (and their sentences) with the controller before continuing.
-- [ ] **Step 7: Commit** `print: 3MF plate writer, slice_plate, measured at the caps`.
+- [ ] **Step 6: Re-measure through the writer** (V17): run both Task 0 plates again,
+  `uv run python print/scripts/measure_plate.py --plate thirty` and `--plate two-big`.
+  Each must print `verdict=ok` (under `MEASURE_MAX_PEAK_KB` and `MEASURE_MAX_SECONDS`);
+  update the sizing note's figures if they moved. A run over either limit applies Task 0's
+  stop rule before continuing.
+- [ ] **Step 7: Commit** `print: 3MF plate writer and slice_plate, re-measured at the limits`.
 
 ### Task 10: Plate jobs
 
@@ -993,7 +1212,7 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
     `process: str`, `delivered_name: str`, `pid: str | None`, `team: int | None`.
   - `run_plate_job(job: PlateJob, scratch: Path) -> SliceResult`: writes the process file
     (Task 14 adds overrides; here the profile's own file is used), `write_plate_3mf`,
-    `slice_plate`, then `check_plate_names(names, plate_object_names(result.output_path))`.
+    `slice_plate` (with its default `PLATE_SLICE_TIMEOUT_S`, 240 s), then `check_plate_names(names, plate_object_names(result.output_path))`.
 - Produces (`print/routes.py`):
   - `REFRESH_PARTS_MESSAGE = "A part is no longer on the server; press Refresh from Onshape on the Parts step."`
   - `print_job_submit`: with no `copies` key → today's sample job (R8). Otherwise validates
@@ -1014,8 +1233,9 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
     `{"token", "summary", "part": {"name": job.delivered_name, "copies": n}}`, and logs
     `slice_done` (`job`, `copies`, `triangles`, `seconds`) or `slice_failed` (`job`,
     `code`, `reason`) with the job's `pid` and `team`.
-  - Send to Printer needs no code: `POST /printer/jobs` sends the file the token names,
-    under the delivered name.
+  - Send to Printer needs no code: `POST /printer/jobs` reads `filename` from the token
+    manager (`print/printer_routes.py`), so it queues the file the token names under the
+    delivered name. `test_send_to_printer_carries_delivered_name` proves it.
 
 - [ ] **Step 1: Write the failing tests.** `test_jobs.py`: `test_payload_reaches_worker`
   (and update `good_worker` signatures to `(job_id, payload)`). `test_plate_job.py`
@@ -1034,6 +1254,15 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
     payload's `delivered_name` is `Box_plus1-20261009-1432.gcode.3mf`)
   - `test_layout_and_slice_queued_events`
   - `test_body_without_copies_keeps_sample_job`
+  - `test_send_to_printer_carries_delivered_name` (spec 4.6): the plate worker runs with
+    `run_plate_job` mocked to return a fake archive; its token goes through
+    `POST /printer/jobs` (set up as `print/tests/test_printer_routes.py` does: a team
+    config with a printer, the relay's job store in a temp dir); the queued job's
+    `filename` equals the payload's `delivered_name`
+    (`Box_plus1-20261009-1432.gcode.3mf`), and `printer_relay.strip_job_suffix` leaves it
+    unchanged.
+  - `test_plate_job_uses_plate_timeout` (`slice_plate` mocked; called with no `timeout_s`,
+    so 240 s, or with `PLATE_SLICE_TIMEOUT_S`)
 - [ ] **Step 2: Run** `uv run python -m unittest print.tests.test_jobs print.tests.test_plate_job print.tests.test_routes_jobs -v`.
   Expect FAIL.
 - [ ] **Step 3: Implement.**
@@ -1042,7 +1271,8 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
   the archive's names match.
 - [ ] **Step 5: Docs.** "Placement" (the copy model, R2's orientations, R10's pivot, the
   rules, the 3MF with one object per copy, the name guard, the Orca codes, the delivered
-  name) and "Limits" (the section 5 table, the measured figure from Task 9).
+  name) and "Limits" (the section 5 table, the 240 s plate slice timeout, the export
+  tessellation, and the measured figures from Tasks 0 and 9).
 - [ ] **Step 6: Run** `make test`. Expect PASS. **Commit** `print: plate jobs with server-side placement checks`.
 
 ### Task 11: The Layout step in the browser
@@ -1232,9 +1462,14 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
     in `warnings` and its name in `skipped`; an empty list after dropping → `error` with
     `EMPTY_LIST_MESSAGE`; `allow_overrides` defaults to `True`; a non-list `filaments` or
     `processes` counts as empty.
-  - `choices_for_request(session_data: dict, force_defaults: bool) -> PrintChoices`:
-    `default_choices()` when `force_defaults`, else
-    `resolve_print_config(TeamConfig.from_dict(session_data or {}).printing_section(), Catalog.load())`.
+  - `load_catalog() -> Catalog`: `Catalog.load()` once per process, cached (the catalog is
+    committed and only changes with a deploy), so `/print/page` does not read about 180
+    files per call.
+  - `choices_for_request(session_data: dict | None, force_defaults: bool) -> PrintChoices`:
+    the caller passes `session.get('team_config_data')` as `session_data`, and
+    `force_defaults=True` for the upload mode (R8). `default_choices()` when
+    `force_defaults`, else
+    `resolve_print_config(TeamConfig.from_dict(session_data or {}).printing_section(), load_catalog())`.
   - `OVERRIDE_CHOICES = {'infill': [10, 15, 20, 30, 40, 60, 100], 'walls': [2, 3, 4, 6], 'supports': ['off', 'on'], 'brim': ['auto', 'off', 'outer']}`
   - `OverrideError(Exception)` with `message`.
   - `validate_overrides(raw: dict | None, allowed: bool) -> dict[str, str]`: only the four
@@ -1259,8 +1494,11 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
     fallback; `slice_profiles` raises)
   - `test_spec_example_resolves` (the spec's YAML: 0.4 nozzle, two filaments, two processes,
     no warnings)
-  - `test_incompatible_filament_dropped_with_warning` (`Generic PETG @BBL H2S` with the 0.4
-    nozzle if the catalog says it does not fit, otherwise a 0.6-only process)
+  - `test_incompatible_filament_dropped_with_warning`: the 0.4 nozzle printer with process
+    `0.24mm Balanced Quality @BBL H2S 0.6 nozzle`, which fits only the 0.6 nozzle, is
+    dropped with `DROPPED_MESSAGE` naming `printing.processes`. (`Generic PETG @BBL H2S`
+    fits the 0.4, 0.6 and 0.8 nozzles, so it cannot serve here; checked Fri 10-09.)
+  - `test_catalog_loaded_once` (two `choices_for_request` calls read the catalog once)
   - `test_list_empty_after_drops_disables_slicing`
   - `test_overrides_mapped_to_orca_keys`
   - `test_override_outside_list_refused` (`infill: 25`, `walls: '3'` as text, an unknown key)
@@ -1283,7 +1521,7 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
 **Files:**
 - Modify: `print/static/print_wizard.js`, `print/templates/print_wizard.html` (Setup
   fields; the "Stage 1" comment and hint replaced, R14), `print/static/print_layout.css`,
-  `print/tests/js/print_wizard.test.js`
+  `print/tests/js/print_wizard.test.js`, `docs/3D_PRINTING.md` (the stage 1 sweep, Step 5)
 
 **Interfaces:**
 - Consumes: `/print/page` `config` and `overrides` (Task 14); `jobBody` (Task 12).
@@ -1305,7 +1543,36 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
   false with `config.error`, true otherwise).
 - [ ] **Step 2: Run** `make test-quick`. Expect FAIL.
 - [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** `make test`. Expect PASS. **Commit** `print: Setup step with team filaments, print settings and overrides`.
+- [ ] **Step 4: Run** `make test`. Expect PASS.
+- [ ] **Step 5: Docs sweep (R14).** `docs/3D_PRINTING.md` stops describing stage 1 as the
+  whole print path. Each item, by section of today's file:
+  - the title "(stage 1)" goes; section 1 "What stage 1 does" becomes "What the print path
+    does": the Onshape flow (Parts, Layout, Setup, Preview) and the upload mode's sample
+    part, which keeps the stage 1 behaviour (R8);
+  - section 2's diagram and "Where the files live": the new modules and static files
+    (`events.py`, `onshape_parts.py`, `limits.py`, `mesh.py`, `part_store.py`, `plate.py`,
+    `plate_3mf.py`, `plate_job.py`, `print_config.py`, `profiles/catalog/`,
+    `print_onshape.js`, `plate_geometry.js`, `print_layout.js`, `print_layout.css`);
+  - section 6 "The command line": `--arrange 1` stays only for the sample part; a plate is
+    sliced with `--arrange 0 --orient 0`, with the 240 s plate timeout beside the sample's
+    120 s;
+  - section 7 "The worker": the `print_job` metrics event is replaced by `slice_queued`,
+    `slice_done` and `slice_failed` (Task 1), and the worker takes a payload (Task 10);
+  - section 8 "Routes": the route table gains `POST /print/page`,
+    `POST /print/onshape/parts`, `GET /print/parts/<ref>.stl`, `POST /print/client-event`
+    and `POST /print/deliver` with their gates and limits, and the page id rule; the
+    "`/print/part` is deliberately ungated" paragraph is kept and says why (R15): it serves
+    only the sample part for the upload mode, is exempt from the page id gate, and the
+    Onshape flow never calls it;
+  - section 9 "Frontend": `loadPart()` and `/print/part?stl=1` are the upload mode's path;
+    the Onshape mode's Parts, Layout, Setup and Preview are described;
+  - section 11 "Testing": the test table gains every new test module and node test file;
+  - section 12 "Open items and later stages": items milestone 1 closed (several parts,
+    placement, team profiles) are removed; the rest stay.
+
+  Then `grep -n -i 'stage 1' docs/3D_PRINTING.md` finds only the sample part's history,
+  if anything. Neutral wording throughout.
+- [ ] **Step 6: Run** `make test`. Expect PASS. **Commit** `print: Setup step with team filaments, print settings and overrides; developer guide swept`.
 
 ---
 
@@ -1326,17 +1593,30 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
 - Produces:
   - `Step.action` gains `print-parts` (in the print page, go to the Parts step, which arms
     the page's own selection) and `print-dialog` (press `#btn-add-from-document`).
-  - `SCENARIOS` gains (estimate 12 each, R13):
+  - `SCENARIOS` gains, each `estimate` computed from its steps (R13; the ledger counts
+    responses 200–399, so an export's 307 and 200 are two; panel load is 6, as in
+    `panel-load`; the print page itself makes no Onshape call):
     - `print-select-parts`, document `tb-two-parts`, panel: `choose-print`, `print-parts`,
       `select part <box>` (select the box), `select part <cylinder>`, a deselection step.
+      Estimate **13**: panel 6; the box: elements, configuration, parts, export 2 (5); the
+      cylinder: export 2, the element answers cached; deselection and the unbounded
+      reference selection 0.
     - `print-dialog-parts`, `tb-two-parts`, panel: `choose-print`, `print-parts`,
-      `print-dialog` picking `tb-box`'s part, then closing the dialog.
+      `print-dialog` picking `tb-box`'s part, then closing the dialog. Estimate **11**:
+      panel 6; export by `idTag` 2; if `idTag` is not the part id, its failed export is a
+      4xx (not counted), then parts 1 and export 2.
     - `print-assembly-part`, `tb-assembly`, panel: `choose-print`, `print-parts`, select
-      one instance.
+      one instance. Estimate **10**: panel 6; elements, assembly definition, export 2.
     - `print-export`, `tb-two-parts` and `tb-assembly`, no panel: `run_scenario_api`
       resolves both parts of `tb-two-parts` (via `selection` with part ids from
       `documents.json`) and the assembly's first instance (via an occurrence path from the
-      definition), and exports each with `export_part_mesh`.
+      definition), and exports each with `export_part_mesh`. Estimate **12**: `tb-two-parts`
+      elements, configuration, parts, two exports 4 (7); `tb-assembly` the runner's
+      assembly definition read for the path 1, elements 1, the definition again from
+      `ELEMENT_CACHE` 0, export 2 (4); 11 in all, plus 1 in case the runner's read does
+      not go through `ELEMENT_CACHE`.
+    - `test_print_scenarios_defined_with_known_documents_and_estimates` asserts these four
+      numbers, so a changed step list forces a recount.
   - `ui_run`: `SELECTORS` gains `print_next` and `print_add_from_document`; the step driver
     handles the two new actions inside the panel frame. The unbounded-selection reference
     recording (spec 11 step 3) is a step of `print-select-parts` that sends one
@@ -1366,8 +1646,15 @@ planned: slow tests join `print/tests/orca_integration_test.py`).
 - [ ] **Step 3: Implement** the scenarios, the API runner branch, the `ui_run` actions, the
   strip change and `browser_print.py`.
 - [ ] **Step 4: Run** `make test` and `make testbed-replay`. Expect PASS, with the five
-  print browser tests skipped as `needs a recording` and the self-test passing.
-- [ ] **Step 5: Commit** `testbed: print scenarios and browser checks`.
+  print browser tests skipped as `needs a recording` (the test bed's own panel scenarios
+  add their skips while they are unrecorded) and the self-test passing.
+- [ ] **Step 5: Rate limits in replay.** The replay server runs the real limiter (all
+  requests come from localhost: `POST /print/page` 10 per minute, `POST /print-job`
+  3 per minute), and the test bed exempted only its own routes
+  (`testbed/flask_hooks.py`, `limiter.exempt(bp)`). Search the replay run's log for
+  `429`. If any print request got one, exempt the print blueprint in replay mode the same
+  way, inside `testbed/flask_hooks.py` only (never in production code), and rerun.
+- [ ] **Step 6: Commit** `testbed: print scenarios and browser checks`.
 
 ### Task 17 (needs Onshape credentials): the validation run with the owner
 
@@ -1378,7 +1665,10 @@ Step 1 needs none.
   `PenguinCAM-notes/guides/PRINT_VALIDATION_RUN.md` from spec section 11, linking the test
   bed's [ONSHAPE_CHECKPOINT.md](../guides/ONSHAPE_CHECKPOINT.md). Commit it in the notes repo.
 - [ ] **Step 2 (credentials):** `uv run python -m testbed build-docs`, then
-  `uv run python -m testbed record print-export`; `accept print-export`.
+  `uv run python -m testbed record print-export`; `accept print-export`. Write down each
+  exported part's triangle count (the `export` lines' `triangles=`) against
+  `MAX_PART_TRIANGLES`, to confirm the export tessellation keeps the test parts well under
+  it (spec 3.3).
 - [ ] **Step 3 (credentials):** `uv run python -m testbed record --ui print-select-parts print-dialog-parts print-assembly-part`.
   The run records the click selection in a Part Studio and an Assembly, the dialog
   (write down whether `idTag` equals the part id), a configured Part Studio, and the
@@ -1416,11 +1706,16 @@ Step 1 needs none.
 | V14 | One object per copy, names, transforms; delivered name; name guard (4.6) | `uv run python -m unittest print.tests.test_plate_3mf print.tests.test_plate_job -v` | pass |
 | V15 | A two-part placement slices with every name; rotated footprint within 0.5 mm without brim; overrides slice; catalog builds and its skipped list matches (8.1) | `uv run python -m unittest print.tests.orca_integration_test -v` | pass |
 | V16 | Overlapping placement refused before Orca; limits enforced (4.6, 5) | `uv run python -m unittest print.tests.test_routes_jobs -v` | pass |
-| V17 | Caps measured; under 1 GB (5) | `uv run python print/scripts/measure_plate.py` | peak RSS under 1,048,576 KB, and the figure is in `print/jobs.py` |
+| V17 | Plates at the limits measured: under 900 MB and 180 s, inside the 240 s plate timeout (5) | `uv run python print/scripts/measure_plate.py --plate thirty && uv run python print/scripts/measure_plate.py --plate two-big` | both print `verdict=ok`: peak under 921,600 KB and wall time under 180 s each; both figures are in `print/jobs.py`'s sizing note |
 | V18 | Unknown printer fails closed; drops warn; overrides validated (6.2, 6.3) | `uv run python -m unittest print.tests.test_print_config -v` | pass |
 | V19 | Synthetic fixtures only under `testbed/tests/fixtures`, marked; no scenario replays one (8.2) | `grep -rL '"synthetic": true' testbed/tests/fixtures --include='synthetic-*.json'; grep -rln '"synthetic": true' testbed/cassettes testbed/messages` | both print nothing |
-| V20 | Browser scenarios skipped until recorded, then replayed (8.2) | `make testbed-replay` | before Task 17: five `needs a recording` skips; after: none |
+| V20 | Browser scenarios skipped until recorded, then replayed (8.2) | `make testbed-replay` | before Task 17: the five print browser tests skip with `needs a recording` (the test bed's own panel scenarios skip too while they are unrecorded), and no request gets a 429; after: no print scenario skips |
 | V21 | New test bed scenarios recorded and drift clean (8.3, 11) | `uv run python -m testbed record print-export`; `… record --ui …`; `uv run python -m testbed drift` *(credentials)* | the report says `clean` |
+| V22 | Send to Printer keeps working with plate jobs, under the delivered name (4.6) | `uv run python -m unittest print.tests.test_routes_jobs -v && node --test print/tests/printer_panel/printer_panel.test.mjs` | `test_send_to_printer_carries_delivered_name` and the panel's `reportDeliver` tests pass |
+| V23 | Preview draws every copy where it was placed (4.7) | `node --test print/tests/js/print_viewer.test.js` | pass, `transformPositions` included |
+| V24 | Layout helpers: hit test, rotation, sync of copies, the sentence order (4.5, 4.4) | `node --test print/tests/js/print_layout.test.js` | pass |
+| V25 | Setup: team lists, overrides from the form, a config error blocks slicing (6.4) | `node --test print/tests/js/print_wizard.test.js` | pass, `overridesFromForm` and `canSlice` included |
+| V26 | Explicit tessellation, `Accept` on every hop, cache miss refetches (3.3) | `uv run python -m unittest print.tests.test_onshape_resolve print.tests.test_onshape_context -v` | `test_export_asks_for_print_tessellation`, `test_headers_sent_on_request_and_every_hop` and both `cache_miss` tests pass |
 
-V1–V20 (before-recording form) can pass without Onshape. V20's after-recording form and
+V1–V20 (before-recording form) and V22–V26 can pass without Onshape. V20's after-recording form and
 V21 complete the milestone in the validation run with the owner.
