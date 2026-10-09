@@ -10,7 +10,7 @@ print path only, the Education plan, and approval to drive Onshape's interface.
 
 **1. Every live Onshape call costs part of a small annual allowance.** Onshape caps API
 calls per year by plan ([API limits](https://onshape-public.github.io/docs/auth/limits/)).
-The owner's account is on an Education plan:
+The owner's account is on the per-user Education plan, EDU Student: **2,500 calls a year**.
 
 | Education plan | Annual calls |
 |---|---|
@@ -35,7 +35,7 @@ The owner's account is on an Education plan:
   percent go to admins, so a personal account may get none.
 
 Both of the test bed's live paths, the API keys and the development app, draw on the
-owner's allowance, probably 2,500 calls a year. So the test bed works from recordings and
+owner's allowance of 2,500 calls a year. So the test bed works from recordings and
 spends live calls deliberately, through a counted budget (section 7).
 
 **2. The test bed drives Onshape's own interface, with the owner's approval.** Onshape's
@@ -586,10 +586,10 @@ Reported for the owner, not acted on here:
 
 ## 12. What the agent needs from the owner
 
-1. **The exact Education plan and usage.** EDU Student or Educator (2,500 calls) or EDU
-   Enterprise (10,000)? What does My Account → Developer show as used, and when does the
-   cycle reset? Was PenguinCAM-chondl-dev created under My Account or in a classroom? Once
-   the automated Onshape UI run works, it can read that page itself.
+1. **Usage so far.** The plan is EDU Student (2,500 calls a year, owner, Fri 10-09). What
+   does My Account → Developer show as used, and when does the cycle reset? Was
+   PenguinCAM-chondl-dev created under My Account or in a classroom? Once the automated
+   Onshape UI run works, it can read that page itself.
 2. **The test bed's share of the allowance.** How many counted calls per year the test bed
    may spend. The default until then is 250.
 3. **The test folder.** Create the folder "PenguinCAM test bed" in Onshape and send its URL.
