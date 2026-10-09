@@ -125,10 +125,15 @@ log and the backend logging below all serve this goal.
 
 ### Better logging in the backend
 
-The backend logs too little to support anyone. It needs, per team and per job: each request
-to the print and printer routes and its result, each slice and its outcome, each job's
-transitions (queued, picked up, acknowledged, expired) with the reason, each pairing step,
-and the last status the daemon reported. It must stay free of secrets: never tokens,
+The backend logs too little to support anyone. **The owner wants this to cover both sides:**
+what students and mentors do in the PenguinCAM interface inside Onshape, and every
+interaction with the daemon. Per team and per job, that means:
+
+- **The interface in Onshape:** sign-in and config loads (which YAML, which warnings), each
+  wizard step a student reaches, each slice and its outcome, each Send to Printer and its
+  result, the status polls, and every error message the student was shown.
+- **The daemon:** each pairing step, each sync and what it reported, each job's transitions
+  (queued, picked up, acknowledged, expired) with the reason, and the last printer status. It must stay free of secrets: never tokens,
 download tokens, access codes or pairing tokens. Where the logs live and how a supporter
 reads them on Railway is part of the design.
 
