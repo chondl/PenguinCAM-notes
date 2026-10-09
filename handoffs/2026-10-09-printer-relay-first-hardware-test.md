@@ -162,7 +162,7 @@ Some mentors are savvy and will read the daemon's own log. It should tell them p
 whether things are working:
 
 - Nothing that looks like an error unless something actually failed. The 426 line in issue 2
-  and the `RemoteDisconnected` retry in issue 4 are the examples from this test. Library log
+  and the `RemoteDisconnected` retry in issue 6 are the examples from this test. Library log
   lines should be captured and reworded, or demoted.
 - Progress lines that show the daemon is alive and working: printer connected, backend
   reachable, paired, syncing, idle with the printer's state, each job stage and its outcome.
