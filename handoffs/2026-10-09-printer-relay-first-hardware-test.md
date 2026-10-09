@@ -112,6 +112,26 @@ whether things are working:
   reachable, paired, syncing, idle with the printer's state, each job stage and its outcome.
   While waiting, a periodic line that says what it is waiting for.
 
+### File names that say which part and when
+
+**The owner wants every file name tied to its part**, so anyone who sees a name, on the
+printer's screen, in its file list or in a download, can tell which part it is and the date
+and time it was printed, in the local time zone. Today the names are
+`sample_part.gcode.3mf` for the slice and `sample_part-jb345bf38.gcode.3mf` on the printer:
+the part is the hardcoded sample, and the job id says nothing to a person.
+
+Points to settle in the design:
+
+- The part name comes from Onshape once the model is fetched from Onshape instead of the
+  hardcoded `print/sample_part.stl`, the next feature already planned.
+- "Local" means the shop's time zone, not the server's (Railway runs in UTC). Either the
+  browser sends its zone with the slice, or the daemon stamps the name with the Pi's own
+  clock when it uploads.
+- The start check (issue 1) finds the job by name, so the name must stay unique per job
+  and predictable to the daemon. The job id, or something equally unique, stays in it.
+- The H2S's screen shows only so many characters, and the printer's file system and FTPS
+  may restrict characters. Both limits need checking on the printer.
+
 ### A preview image in the sliced file
 
 **The owner wants this in a future version.** The test print ran fine without one, so the
