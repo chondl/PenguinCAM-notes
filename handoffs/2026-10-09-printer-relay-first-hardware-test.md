@@ -72,7 +72,35 @@ The H2S showed no preview of the part. Orca runs headless and skips thumbnails f
 an OpenGL context (`docs/3D_PRINTING.md`, "No thumbnails"). That was known and accepted at
 stage 1. On a printer with several jobs, though, a blank tile is a usability gap.
 
-### 4. Smaller observations
+### 4. Choosing Send to Printer from the menu sends the print at once
+
+Opening the split button's caret and choosing **Send to Printer** started the print
+immediately, which the owner found confusing: it looked as if picking an item from a
+dropdown had pressed the button. The code does this on purpose: `chooseAction` in
+`print/static/print_wizard.js` remembers the choice, relabels the main button, and calls
+`performAction`, the same split-button behaviour as Drive in the CNC wizard. For a physical
+print that is too easy to trigger. Choosing from the menu should change the button, and a
+separate press (perhaps with a confirmation naming the printer and the part) should send.
+
+### 5. No progress shown while the part printed
+
+The owner saw no progress in the wizard while the part printed. What the code does today:
+`print/static/printer_panel.js` polls `/printer/status` every five seconds, only while the
+Preview step is showing, and renders a single status line, `Printing <name>, N percent,
+M min left`. Why nothing appeared was not established: the backend logs no request lines,
+so whether the panel kept polling is unknown. Contributing causes visible in this test: the
+job was acknowledged as failed (issue 1), the name the line uses comes from `gcode_file`
+(`plate_1.gcode`, not the part), and the printer reported 0 percent at the moment the
+status document was read.
+
+What the owner wants is more than a fixed bug: **progress streamed back as the print goes**,
+with more information than one line, for example the stage (heating, calibrating, printing),
+percent, layer N of M, and time left. The H2S report carries `stg_cur`, `mc_percent`,
+`layer_num`, `total_layer_num` and `mc_remaining_time` (table in issue 1). The print
+wizard already streams slice progress over its event stream (`print/routes.py`), which is
+a natural channel for print progress as well.
+
+### 6. Smaller observations
 
 - `pair` printed `Connected to the printer  (0938AC…)` with the model and name blank: the
   daemon does not find the H2S's model and name in the fields it reads.
