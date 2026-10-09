@@ -114,6 +114,24 @@ a natural channel for print progress as well.
 These are recorded, not started. Each one is new behaviour that ships through a PR, so
 each starts with `designing-a-feature`.
 
+### The principle behind these: supportable from the server alone
+
+**The owner's goal for the whole print path:** a support question about any team's setup
+can be answered from the information on the server, without asking the team to run
+commands or send screenshots. Several times now debugging needed information nobody had
+logged. In this test, for example, the backend logs no request lines, so whether the wizard
+kept polling the printer status could not be answered (issue 5). The telemetry, the local
+log and the backend logging below all serve this goal.
+
+### Better logging in the backend
+
+The backend logs too little to support anyone. It needs, per team and per job: each request
+to the print and printer routes and its result, each slice and its outcome, each job's
+transitions (queued, picked up, acknowledged, expired) with the reason, each pairing step,
+and the last status the daemon reported. It must stay free of secrets: never tokens,
+download tokens, access codes or pairing tokens. Where the logs live and how a supporter
+reads them on Railway is part of the design.
+
 ### Daemon telemetry to the server (most important)
 
 **The owner's main takeaway from this test.** Mentors will set up a daemon without knowing
@@ -155,6 +173,35 @@ Points to settle in the design:
   protocol. The tests in `print/printer_daemon/tests/` describe the behaviour to keep.
 - This work and the telemetry and local log features above touch the same code, so the
   order in which they are built matters.
+
+### Printer adapters from the start
+
+**The owner wants printer adapters designed in from the start.** Bambu Lab printers are by
+far the most common among the first teams, but other brands will follow. Whether the
+adapters live in the daemon or on the server is still open.
+
+What the code has today: the backend relay, pairing, the job protocol and the wizard's
+status line know nothing about the printer's brand. Everything on the printer's side of
+the daemon is Bambu-specific: `PrinterLink` and `map_status` in
+`print/printer_daemon/printer.py`, through `bambulabs_api`. On the slicing side, Orca 2.4.2
+ships profiles for 66 vendors, but PenguinCAM uses one fixed H2S profile set,
+`print/scripts/flatten_orca_profiles.py` reads only Orca's BBL folder, and the slicer always
+writes Bambu's `.gcode.3mf`.
+
+Expectations recorded with the owner:
+
+- An adapter's job: connect, upload, start, read status, and map that status onto the
+  relay's states (idle, running, paused, finished, error, unreachable).
+- Each protocol is different enough that a new printer family will probably mean a new
+  daemon release. The code is still organised around adding adapters, so a new family is a
+  new adapter, not a redesign.
+- Other printer families speak their own protocols. Per general knowledge, not yet checked:
+  Klipper printers through Moonraker's HTTP API, Prusa printers through PrusaLink, plain
+  Marlin printers through OctoPrint or USB serial. Each needs a real printer to test
+  against, as this test showed for Bambu.
+- The slicing side needs the same idea: printer, filament and process profiles chosen per
+  printer, flattening for any vendor's folder, and plain `.gcode` output where the printer
+  wants it.
 
 ### A clearer local log on the daemon
 
