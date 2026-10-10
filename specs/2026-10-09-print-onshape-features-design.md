@@ -417,8 +417,9 @@ From the spike and the adversarial review's experiments, observed on Fri 10-09:
 Each copy has:
 
 - `ref`, the part;
-- `orientation`, one of six: which axis of the part points down, `+z` (as modelled), `-z`,
-  `+x`, `-x`, `+y`, `-y`;
+- `orientation`, one of six, named by the axis of the part that points **up** (plan ruling
+  R2): `+z` (as modelled), `-z`, `+x`, `-x`, `+y`, `-y`. The face that rests on the plate is
+  the opposite one, so `+x` rests on its −x face;
 - `angle`, degrees about the vertical axis, any value from 0 to 359;
 - `x, y`, the centre of the copy's footprint on the plate, in millimetres from the plate's
   origin.
@@ -476,7 +477,7 @@ Orca's arrange also changes rotations, which would undo the student's choices.
   - click to select a copy;
   - the selected copy shows rotate −90°, rotate +90°, an angle field, and a Lay flat menu
     with the six orientations named by the face that rests on the plate ("as modelled",
-    "upside down", "on its side (x)" …);
+    "upside down", "on its side, −x face down" …, the opposite of the axis pointing up);
   - delete and duplicate.
 - Copies are drawn as their footprints, red when they break a rule. A sentence under the
   canvas names the first broken rule.
