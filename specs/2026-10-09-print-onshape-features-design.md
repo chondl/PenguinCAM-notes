@@ -567,9 +567,27 @@ slice at a time):
 | Distinct parts per page id | 20 | the first draft's figure; each part costs one export | "Up to 20 different parts per print." |
 | Mesh bytes per page id | 50 MB | 20 parts at a typical 2.5 MB | "These parts are too large to slice together." |
 | Copies per plate | 30, quantity 1 to 30 each | 30 copies of 512 triangles (15,360 in all) measured at 814 MB peak and 8.7 s; 30 copies of 8,332 triangles (249,960 in all) at 716 MB and 43 s; 50 copies were never measured | "Up to 30 copies per plate; print the rest in a second job." |
-| Triangles per job, summed over copies | 300,000 | triangles, not copies, drive time and memory: 249,960 took 43 s and 716 MB, 999,960 took 5 min 52 s and 1,087 MB (plan review, Fri 10-09); 300,000 is confirmed by the first build task's measurement | "These copies are too detailed to slice together; lower the quantities." |
+| Triangles per job, summed over copies | 300,000 | 249,960 took 43 s and 716 MB, 999,960 took 5 min 52 s and 1,087 MB (plan review, Fri 10-09); 300,000 confirmed by the first build task (Sat 10-10, below) | "These copies are too detailed to slice together; lower the quantities." |
 | Plate slice time | 240 s (the sample part keeps 120 s) | 249,960 triangles took 43 s, so a plate at the caps has room on a busier machine | "The slicer took too long on this part." (today's sentence) |
 | Part store on disk, all page ids | 500 MB | backstop: a reload makes a new page id and so escapes the per-page limits | "The print service is busy; try again in a few minutes." |
+
+**Measured at the limits (Task 0, Sat 10-10, Orca 2.4.2, aarch64 Linux, 6 cores).**
+The part is a 40 x 20 mm hub with a 12 mm bore and 3 mm fillets, revolved into
+near-square facets; each plate ran twice and the worse peak and time are given
+(`print/scripts/measure_plate.py`, recorded in `print/jobs.py`):
+
+| Plate | Triangles | Peak | Time |
+|---|---|---|---|
+| 30 copies of 9,882 | 296,460 | 886 MB (907,524 KB) | 16.2 s |
+| 2 copies of 149,760 (the per-part cap) | 299,520 | 214 MB (219,136 KB) | 3.2 s |
+| 3 copies of 124,830 | 374,490 | 233 MB (238,280 KB) | 4.2 s |
+| 3 copies of 99,960 | 299,880 | 214 MB (219,560 KB) | 3.8 s |
+
+All are inside the stop rule, so the caps stand: 150,000 triangles per part, 300,000 per
+job. A first measurement with cylinders whose caps were 37,500-triangle fans (slivers)
+peaked at 954 to 1,113 MB for two 150,000-triangle copies; the hub shows that came from
+the sliver facets, not the triangle count. With realistic facets the copy count, not the
+triangle count, drives memory: the 30-copy plate is the one near the 900 MB line.
 
 The first build task, before the part store exists, slices plates at the limits (30 copies
 with 300,000 triangles in all, and two copies of one 150,000-triangle part) and records
