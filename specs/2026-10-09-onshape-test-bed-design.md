@@ -192,6 +192,7 @@ API, one `POST …/features` per sketch or extrude:
 | `tb-sideways` | A tall thin part modelled lying on its side | Orientation on the plate. |
 | `tb-oversized` | A 400 × 50 × 10 mm slab | Larger than the H2S's 340 × 320 mm plate. |
 | `tb-assembly` | An assembly placing two instances of `tb-box` | Parts reached through an assembly, the way students often work. |
+| `tb-configured` | A 20 × 20 mm spacer in a Part Studio with one list input, Size (Small, Large), driving its extrude depth (10 mm, 20 mm); the configuration is posted through `POST /elements/d/{did}/w/{wid}/e/{eid}/configuration` before the features | A configured Part Studio, so the print path's handling of configurations (pass the configuration through, or refuse a click until `{$configuration}` is registered) is recorded. *(As built: added by a controller ruling during the print-path build.)* |
 
 - **Placing documents in the folder.** `POST /documents` takes a `parentId`, which the
   documentation describes only as the document's parent. `build-docs` checks, by listing
@@ -218,7 +219,8 @@ API, one `POST …/features` per sketch or extrude:
 - **Re-running is safe.** It lists the folder (`GET /documents?parentId=<folder>`), keeps
   documents that already exist, and builds only what is missing. It also saves a version of
   `tb-box` (`POST /documents/d/{did}/versions`), which `part-export` exports from. `--rebuild NAME` deletes and rebuilds one document.
-- **Cost.** A full build is about 30 to 40 counted calls (estimate: creating each document,
+- **Cost.** A full build is about 30 to 40 counted calls *(as built: estimated at 48 with
+  `tb-configured` and a `--rebuild`'s delete, `BUILD_DOCS_ESTIMATE`)* (estimate: creating each document,
   listing its elements, two or three features per simple part, about five for the two-part
   document, five or six for the assembly, one version, one folder listing), more if each
   step is read back to confirm it.
@@ -758,6 +760,9 @@ Each is marked *(as built)* where it is made above.
   by the automated Onshape UI run; `record --ui` refuses while any is pending.
 - 5.1: the `tb-inch` units switch is checked by reading the units dialog again before the
   run records it as done.
+- 5.1: a seventh test document, `tb-configured`, a Part Studio with one list input driving
+  an extrude depth, so a configured Part Studio can be recorded; `part-export` leaves it
+  out and the print scenario `print-configured-part` selects its part both ways.
 - 5.2: the whole query of every exchange outside `*.onshape.com` is dropped, not only a
   redirect target's; first and last names and company names are replaced too; the scrub
   test also checks for signed URLs and non-stand-in user ids and names.
