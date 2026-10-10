@@ -378,6 +378,7 @@ wraps exactly that call, so no separate persistence step is needed.
 | Standard content | "<name> is standard content (hardware) and is not printed." |
 | A configured Part Studio without a configuration | see 3.3 |
 | Two parts with the dialog's name | "Two parts are named <name>; rename one in Onshape." |
+| A click selection whose part is not in the Part Studio, even after the parts list is fetched again | "Could not find the selected part in this Part Studio; use Add from another document…" |
 | Export failed | "Onshape could not export <name>. Try again, or Refresh from Onshape." |
 | Allowance exhausted (402, development app only) | "Onshape refused the export (API limit reached)." |
 | A limit in section 5 | the sentence listed there |
@@ -579,6 +580,7 @@ near-square facets; each plate ran twice and the worse peak and time are given
 | Plate | Triangles | Peak | Time |
 |---|---|---|---|
 | 30 copies of 9,882 | 296,460 | 886 MB (907,524 KB) | 16.2 s |
+| 25 copies of 11,968 (the lowered copy cap, measured after the ruling) | 299,200 | 779 MB (797,408 KB) | 14.1 s |
 | 2 copies of 149,760 (the per-part cap) | 299,520 | 214 MB (219,136 KB) | 3.2 s |
 | 3 copies of 124,830 | 374,490 | 233 MB (238,280 KB) | 4.2 s |
 | 3 copies of 99,960 | 299,880 | 214 MB (219,560 KB) | 3.8 s |
