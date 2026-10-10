@@ -1,34 +1,36 @@
 # Onshape test bed and milestone 1 build: where it stands
 
-Written Fri 10-09 around 19:50 PT, at the end of a build session that ran from about 15:00 PT
-the same day. All times are Pacific. It covers milestone 1 of the
+First written Fri 10-09 around 19:50 PT, at the end of a build session that ran from about
+15:00 PT; brought to the finished state Sat 10-10 02:20 PT. All times are Pacific. It covers milestone 1 of the
 [3D printing roadmap](../plans/2026-10-09-print-roadmap.md): the Onshape test bed (sub-project
 1) and the print path's Onshape features (sub-projects 2 to 6). Read the roadmap first if you
 have not; nothing else is needed.
 
 ## Short answer
 
-- **The test bed is built** (its Tasks 1 to 13, all reviewed). It works fully in replay mode,
-  with no live Onshape call. Its first live recordings (its Task 14) wait on your credentials
-  and a test folder in Onshape.
-- **Milestone 1's features are built up to the plate preview.** Supportability, the model
-  from Onshape, placement on the plate and multiple parts are in (features Tasks 0 to 12).
-  Tasks 0 to 10 are reviewed. Tasks 11 (Layout) and 12 (Preview) landed at 19:36 and 19:39 PT
-  and are under review now. Profiles and the test bed's print scenarios (Tasks 13 to 16) are
-  not started.
+- **The build is finished and reviewed.** The test bed (its Tasks 1 to 13) and milestone 1's
+  features (features Tasks 0 to 16) are all built, and every task was reviewed. The test bed
+  works fully in replay mode, with no live Onshape call. Its first live recordings (its
+  Task 14) wait on your credentials and a test folder in Onshape.
+- **The final whole-branch review** (Fable, one review over both plans) found 0 Critical,
+  6 Important and 13 Minor findings. All six Importants are fixed, in commits `aedb5ff`,
+  `ad635b3`, `ca97b69`, `bc1d732` and `a5ce10b`. The scoped re-review says **ready to merge**.
+  The fix wave was interrupted once by an API usage limit (Sat 10-10 02:02 PT) and resumed
+  with the same sub-agent.
+- **The configured test document `tb-configured` was added** (one configuration input), so
+  the validation run can record a configured Part Studio.
 - **Nothing has touched real Onshape yet** beyond loading its sign-in page once. Every
   Onshape behaviour the features rely on, and that Onshape does not document, is settled
   only by the validation run with you (Task 17).
-- **Three things need you now:** rotate `GH_TOKEN` (section 7.1), add four credentials and
-  a test folder (section 7.2), and later answer the decisions in section 7.3.
+- **Three things need you now:** rotate `GH_TOKEN` and `CLAUDE_CODE_MESSAGING_TOKEN`
+  (section 7.1), add four credentials and a test folder (section 7.2), and later answer the
+  decisions in section 7.3.
 - Everything is on the local branch `feature/onshape-test-bed` in PenguinCAM. Nothing is
   pushed and there is no pull request.
 
 ```mermaid
 flowchart TB
-    t11["Tasks 11-12<br/>Layout, Preview<br/>under review"] --> t13["Tasks 13-15<br/>profiles"]
-    t13 --> t16["Task 16<br/>print scenarios"]
-    t16 --> rev["Whole-branch<br/>final review"]
+    built["Tasks 0-16<br/>built, reviewed"] --> rev["Whole-branch<br/>final review<br/>fixed, ready"]
     rev --> run["Validation run<br/>with you"]
     you["You: credentials,<br/>test folder"] --> run
     run --> m2["Milestone 2"]
@@ -82,22 +84,33 @@ These are the specs' terms; each means one thing everywhere below.
 |---|---|---|
 | [Test bed plan](../plans/2026-10-09-onshape-test-bed.md) | 1-13 | Done and reviewed, Fri 10-09 15:24 to 17:06 PT |
 | | 14, first live recordings | Blocked on your credentials and test folder |
-| [Features plan](../plans/2026-10-09-print-onshape-features.md) | 0-10 | Done and reviewed, 17:06 to 19:19 PT |
-| | 11 Layout, 12 Preview | Landed (commits `cfeee92`, `77191b0`); `make test` and `make testbed-replay` pass; review under way |
-| | 13 profile catalog, 14 team configuration, 15 Setup step, 16 print scenarios | Not started |
-| | Whole-branch final review | Planned after Task 16, one review over both plans |
+| [Features plan](../plans/2026-10-09-print-onshape-features.md) | 0-10 | Done and reviewed, Fri 10-09 17:06 to 19:19 PT |
+| | 11 Layout, 12 Preview | Done and reviewed (commits `cfeee92`, `77191b0`; review clean) |
+| | 13 profile catalog, 14 team configuration, 15 Setup step | Done and reviewed (commits `92e7986`, `0c34f97`, `c9e7b0e`; review clean, 9 Minors) |
+| | 16 print scenarios, with `tb-configured` | Done and reviewed (commits `1679572`, `0937299`, `22f47da`, one fix round `07e4422`) |
+| | Whole-branch final review | Done: 0 Critical, 6 Important, 13 Minor; Importants fixed; scoped re-review: ready to merge |
 | | 17, the validation run | Needs you and the credentials |
 
-The branch was cut from `feature/printer-relay` with `origin/main` merged in. Since then it
-holds 43 commits (counted at 19:50 PT): 147 files changed, about 19,000 lines added, most
-of them tests and fixtures. The design is in the [test bed spec](../specs/2026-10-09-onshape-test-bed-design.md)
-and the [features spec](../specs/2026-10-09-print-onshape-features-design.md).
+The branch was cut from `feature/printer-relay` with `origin/main` merged in. Since the
+build began it holds 55 commits (counted Sat 10-10 02:17 PT): 339 files changed, about
+76,000 lines added, most of them tests, fixtures and the committed profile catalog. The design
+is in the [test bed spec](../specs/2026-10-09-onshape-test-bed-design.md) and the
+[features spec](../specs/2026-10-09-print-onshape-features-design.md).
 
 **How the work was run.** Each plan task went to an implementer sub-agent, two or three
 tasks at a time, and each batch to a separate reviewer sub-agent. Every finding marked
 Critical or Important was fixed in a fix round and checked again before the batch counted as
 done. Both specs and both plans were reviewed adversarially before any code was written. The
 build ledgers and review reports are in `.superpowers/sdd/` in the worktree (not committed).
+
+**The final fix wave.** The six Importants were: a selection answer that could not be read
+was dropped in silence (now a sentence and a `client_error`); one failed step ended the whole
+automated Onshape UI run (now each scenario is reported alone); the harness self-tests ran
+a real scenario's name on a synthetic log (now `synthetic-` copies that retire themselves
+once the real recording exists); `allow_overrides` failed open on a non-boolean (now closed,
+with a warning); `accept` promoted a recording without the secret and identity scan (now it
+scans first); and the guide had two stale statements and one gap. The re-review's three new
+Minors were then fixed in `a5ce10b` (section 8.1).
 
 ## 3. What was built: the test bed
 
@@ -115,10 +128,10 @@ set to `replay` or `record`.
 | Development sign-in (`flask_hooks.py`) | Replay mode only: signs the panel in with placeholder API keys, so the panel works with no OAuth. Absent in record mode. |
 | Checklist strip and message recording (`panel/`) | On the print page only, when the test bed is on: offers the scenarios, sends the selection requests, records every message both ways. |
 | Fake Onshape host and browser harness (`host/`, `browser.py`) | A replay server on port 6240 and a Chromium under Xvfb that loads the panel inside the fake Onshape host. |
-| Scenarios (`scenarios/`) | `panel-load`, `to-print`, `part-select`, `multi-select`, `assembly-select` (panel scenarios, which have steps in the panel) and `part-export` (API only). In replay mode the panel scenarios run in a browser against the fake Onshape host; one with no recording are skipped with "needs a recording", never passed. |
+| Scenarios (`scenarios/`) | `panel-load`, `to-print`, `part-select`, `multi-select`, `assembly-select`, and the print scenarios `print-select-parts`, `print-dialog-parts`, `print-assembly-part`, `print-configured-part` (panel scenarios, which have steps in the panel) and `part-export` (API only). In replay mode the panel scenarios run in a browser against the fake Onshape host; one with no recording are skipped with "needs a recording", never passed. |
 | Drift report (`drift.py`) | Compares fresh recordings with stored ones by structure and says whether PenguinCAM or Onshape changed. |
-| Test documents builder (`documents.py`) | Builds six `tb-` documents through the API in your test folder: a box, two parts, an inch block, a part lying on its side, an oversized slab and an assembly. It writes only to documents that pass three checks (in the folder, `tb-` name, a marker description). |
-| Automated Onshape UI run (`ui_run.py`) | Real Chrome, headed under Xvfb, on a kept profile outside the repository; signs in, opens the development app's panel, works the checklist strip. Stops on any bot check (exit 3) or failed step (exit 1), with a screenshot. |
+| Test documents builder (`documents.py`) | Builds seven `tb-` documents through the API in your test folder: a box, two parts, an inch block, a part lying on its side, an oversized slab, an assembly and `tb-configured`, a Part Studio with one configuration input. It writes only to documents that pass three checks (in the folder, `tb-` name, a marker description). |
+| Automated Onshape UI run (`ui_run.py`) | Real Chrome, headed under Xvfb, on a kept profile outside the repository; signs in, opens the development app's panel, works the checklist strip. Stops on any bot check (exit 3), with a screenshot. A failed step fails only its scenario (screenshot, partial recording discarded, exit 1 at the end); scenarios with a pick in Onshape's own dialog are not opened and are listed as needing the owner in an Onshape checkpoint (exit 0 if nothing else is wrong). |
 | Chrome installer (`scripts/install-chrome.sh`) | Unpacks Google Chrome for aarch64 Linux into `~/.local/opt/google-chrome/` without root. |
 
 ### 3.2 How to use it
@@ -130,15 +143,16 @@ The full guide is `docs/ONSHAPE_TEST_BED.md` in PenguinCAM (on the branch). The 
 | `make test-quick`, `make test` | Include the test bed's unit tests; `make test` also slices a fixture box with Orca | none |
 | `make testbed-replay` | Every panel scenario in replay mode, in a browser under Xvfb; must pass before any change to the print path's Onshape code is called done | none |
 | `make testbed-record` | The live API check | counted |
-| `uv run python -m testbed build-docs [--rebuild NAME]` | Builds the missing test documents | counted, estimate 41 |
+| `uv run python -m testbed build-docs [--rebuild NAME]` | Builds the missing test documents | counted, estimate 48 |
 | `uv run python -m testbed record [SCENARIO...]` | Live API check, then the drift report | counted |
 | `uv run python -m testbed record --ui [SCENARIO...]` | Automated Onshape UI run, then the drift report | counted |
 | `uv run python -m testbed drift` | Writes `testbed/.fresh/drift-report.md` | none |
-| `uv run python -m testbed accept SCENARIO...` | Replaces the stored recording with the fresh one, for a commit | none |
+| `uv run python -m testbed accept SCENARIO...` | Replaces the stored recording with the fresh one, for a commit; scans every named scenario for secrets and identity leaks first, and moves nothing if any is dirty | none |
 | `uv run python -m testbed ledger` | Counted calls this cycle, the budget, the last ten lines | none |
 
 Exit codes: 2 for a missing environment variable (named), 3 for a bot check, 4 for the budget
-or a 402, 1 otherwise. Every live command ends with `counted calls: <n>, remaining budget: <m>`.
+or a 402, 1 for a failure (for `record --ui`, a scenario that failed; a run whose only unrecorded
+scenarios need the owner in an Onshape checkpoint exits 0 and lists them under that heading). Every live command ends with `counted calls: <n>, remaining budget: <m>`.
 
 Environment variables: `ONSHAPE_ACCESS_KEY` and `ONSHAPE_SECRET_KEY` (live API check,
 `build-docs`); `ONSHAPE_CLIENT_ID` and `ONSHAPE_CLIENT_SECRET` (record mode, the development
@@ -148,12 +162,12 @@ only, never the server); `TESTBED_FOLDER_ID`, `TESTBED_BUDGET` (default 250),
 
 ### 3.3 What is verified, and how
 
-- **Unit tests:** 153 test bed tests run in `make test-quick`, covering scrubbing (including
+- **Unit tests:** 176 test bed tests run in `make test-quick` (Sat 10-10 02:17 PT), covering scrubbing (including
   a `/blobelements/` download), request matching, redirect hops, translation replay, the
   ledger's arithmetic and the 402 latch, the guards (each in a fresh process), and the
   password redaction.
-- **Browser, replay mode:** `make testbed-replay` runs 18 tests, with 6 skipped for want of
-  recordings. The harness self-tests prove, in Chromium 151, that the fake Onshape host gets
+- **Browser, replay mode:** `make testbed-replay` runs 31 tests, with 15 skipped for want of
+  recordings or an online connection (Sat 10-10 02:17 PT). The harness self-tests prove, in Chromium 151, that the fake Onshape host gets
   a real `onshape.com` origin, passes the panel's frame check and Chrome's local network
   check, carries messages both ways and keeps the session cookie across reloads.
 - **Real Chrome:** Google Chrome 155 installed and ran headed under Xvfb, and loaded
@@ -239,10 +253,11 @@ measuring script `print/scripts/measure_plate.py`, rerun after the 3MF writer la
 
 ### 4.5 Profiles
 
-Not started (Tasks 13 to 15): a committed catalog of every Orca profile for the H2S family,
-the team's `printing:` choices of printer, filaments and processes, four student overrides,
-and the Setup step. Until then every slice uses the current fixed H2S 0.6 nozzle set. The facts
-the catalog rests on were checked during design (section 6.3).
+A committed catalog of every Orca profile for the H2S family (4 printers, 136 filaments,
+16 processes, 1.1 MB), the team's `printing:` choices of printer, filaments and processes
+(a printer name that does not resolve fails closed, never falls back), four student
+overrides, and the Setup step. A non-boolean `printing.allow_overrides` is read as `false`
+with a warning. The facts the catalog rests on were checked during design (section 6.3).
 
 ## 5. Separation from the CNC path
 
@@ -373,15 +388,16 @@ Every review round found at least one real defect. The ones that would have matt
 
 ## 7. Issues for you
 
-### 7.1 Rotate `GH_TOKEN`
+### 7.1 Rotate `GH_TOKEN` and `CLAUDE_CODE_MESSAGING_TOKEN`
 
 During test bed Task 13 (documentation and clean-up) a failing test printed the whole process environment in its
 assertion message. Nothing reached the repository or any log the build writes, but two
 sub-agent transcripts that Claude Code keeps in the container, under
 `~/.claude/projects/-repos-popcornpenguins/25a2febd-…/subagents/`, hold the live `GH_TOKEN`,
 and one also holds the live `CLAUDE_CODE_MESSAGING_TOKEN`. The Onshape values in them are test
-values, not live ones. Rotate `GH_TOKEN` (and the messaging token if it can be), then
-`make secret-set` in `~/agents/control` and start a new container shell. The test was fixed.
+values, not live ones. Rotate `GH_TOKEN` and, alongside it, `CLAUDE_CODE_MESSAGING_TOKEN`,
+then `make secret-set` in `~/agents/control` and start a new container shell. The test was
+fixed.
 
 ### 7.2 Credentials and the test folder
 
@@ -443,6 +459,14 @@ make differently was ruled and recorded. "Cost if wrong" is what undoing it woul
 | "Could not find the selected part in this Part Studio" sentence accepted, added to the spec | The spec had none | A wording change |
 | The part store's start-up cleanup built as specified rather than dropped | The spec asks for it; the review had suggested dropping it | None |
 | Orientation convention R2 (section 8.3) stands after review; spec 4.2 updated to match | A reviewer questioned it | Label wording |
+| Add a configured test document, `tb-configured` (one configuration input), to the test bed in the Task 16 batch | The validation run must record a configured Part Studio | A few more `build-docs` calls |
+| Synthetic self-tests run under `synthetic-` scenario names and skip themselves once the real recording exists (spec 8.2) | A synthetic log must never be replayed under a real scenario's name | None |
+| Task 16's scoped re-review is folded into the final whole-branch review | The final review reads the same review report and is broader | None |
+| The automated Onshape UI run continues past a failed scenario: screenshot, discard the partial recording, report per scenario | One failure should not waste the counted calls already spent | Longer runs after a failure |
+| `accept` refuses any file with secret or identity hits | A recording must be clean before it replaces a stored one | A manual re-record |
+| A run whose only unrecorded scenarios need the owner in an Onshape checkpoint exits 0 and lists them under a heading; exit 1 only for a failed scenario; a bot check still exits 3 | Exit 1 could not tell "something broke" from "dialog picks remain for the owner" | A skipped scenario overlooked in automation (it is listed in the report) |
+| `accept` with several scenarios scans all of them first and moves nothing if any is dirty | One clean scenario should not be accepted while its neighbour is refused | None |
+| After the port timeout the force-killed replay server is waited for | The next server could still find the port busy | None |
 
 ### 8.2 From the features spec
 
@@ -497,18 +521,14 @@ make differently was ruled and recorded. "Cost if wrong" is what undoing it woul
 
 ### 9.1 What remains, by risk
 
-Riskiest first. The order of work still follows dependencies: the validation run comes last,
-because it needs Task 16 and a configured test document.
+Everything that needs no credentials is done. The branch is ready to merge from the
+re-review's side. What remains, riskiest first:
 
 | Item | What makes it risky |
 |---|---|
-| **The validation run** (section 9.2) | Feasibility: every Onshape page selector after the username field, the panel and OAuth steps, and every message shape are unverified; a bot check can stop the automated Onshape UI run; it spends from a budget of 250. |
-| **No configured Part Studio among the test documents** | Feasibility: the validation run must record a configured Part Studio, but none of the six `tb-` documents has a configuration, and the API's feature calls for a configuration table are unexplored. Either `build-docs` gains a `tb-configured` document or you add a configuration to one by hand. |
-| **Task 16, the print scenarios** | Feasibility: the automated Onshape UI run must drive the print page's own Parts step and the select dialog inside Onshape with selectors nobody has seen; its call estimates are untested. |
-| **Tasks 11 and 12 review** | Resources: a review finding in Layout or Preview reopens browser work; Preview's three.js still loads from a CDN. |
-| **Task 13, the profile catalog** | Feasibility, moderate: it walks Orca's whole profile tree; the shadowing, the 27 profiles to skip for lacking the High Flow variant, and the size were checked by a prototype, not the real script. |
-| **Tasks 14 and 15, team configuration and Setup** | Low: a printer name that does not resolve must fail closed, never fall back. |
-| **The whole-branch final review** | Resources: one review over 147 files may start a fix wave. |
+| **The validation run** (section 9.2) | Feasibility: every Onshape page selector after the username field, the panel and OAuth steps, and every message shape are unverified; a bot check can stop the automated Onshape UI run; it spends from a budget of 250. It needs your credentials. |
+| **The dialog-pick scenarios** (`part-select`, `multi-select`, `assembly-select`, `print-dialog-parts`, `print-configured-part`) | Feasibility: each has a pick inside Onshape's own dialog, which the automated Onshape UI run cannot make. They need an Onshape checkpoint run by you, or a future pause-for-owner step in the automated Onshape UI run, where the headed run waits at the dialog step for you to pick and then continues. Splitting them into half-recordings was ruled out. |
+| **Pushing and the pull request** | Resources: a large diff (339 files) for the team to review; nothing is pushed. |
 
 ### 9.2 The validation run, step by step
 
@@ -531,16 +551,19 @@ the Mac in case a bot check hands the run to you.
 **What the agent runs**, in the PenguinCAM worktree:
 
 1. `uv run python -m testbed ledger`, to confirm the budget. Then
-   `TESTBED_FOLDER_ID=<id> uv run python -m testbed build-docs`. Expect six documents in the
-   folder, plus a configured Part Studio if one has been added by then (section 9.1). If one lands outside it, the command says so and exits 1: move it in Onshape and
+   `TESTBED_FOLDER_ID=<id> uv run python -m testbed build-docs`. Expect seven documents in the
+   folder, `tb-configured` among them. If one lands outside it, the command says so and exits 1: move it in Onshape and
    run again.
 2. `uv run python -m testbed record part-export`, then `accept part-export`. The run notes
    where the 307 points and whether the follow-up is counted.
 3. `uv run python -m testbed record print-export` (`print-export` and the three `print-*`
    scenarios in step 4 are what Task 16 adds), then `accept print-export`. Note each
    part's triangle count against the 150,000 cap.
-4. `uv run python -m testbed record --ui`, for the five test bed panel scenarios, then
-   `record --ui print-select-parts print-dialog-parts print-assembly-part`. These record the
+4. `uv run python -m testbed record --ui panel-load to-print`, then
+   `record --ui print-select-parts print-assembly-part`; the dialog-pick scenarios
+   (`part-select`, `multi-select`, `assembly-select`, `print-dialog-parts`,
+   `print-configured-part`) are listed as needing you in an Onshape checkpoint, so run
+   them by hand while PenguinCAM records. Together these record the
    click selection in a Part Studio and an Assembly, the dialog (and whether `idTag` is the
    part id), a configured Part Studio, and once, for reference, a selection request with no required
    count, which Onshape keeps open until told to stop. Accept each.
@@ -554,14 +577,14 @@ recording:
 
 | Step | Estimate |
 |---|---|
-| `build-docs` | 41 |
+| `build-docs` | 48 |
 | `record part-export` | 47 |
 | `record print-export` | 14 |
-| `record --ui`, five test bed panel scenarios | 28 |
+| `record --ui`, test bed panel scenarios (upper bound, all five) | 28 |
 | `record --ui`, three print scenarios | 40 |
-| **Total** | **about 170 of 250** |
+| **Total** | **about 177 of 250** |
 
-That leaves about 80 for one rerun after a fix. Each command also stays under the per-command
+That leaves about 70 for one rerun after a fix. Each command also stays under the per-command
 cap of 150. Your own use of the development app draws on the same 2,500, outside the ledger.
 
 **On a bot check** (a CAPTCHA, a challenge page, an unexpected verification): the run
