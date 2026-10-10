@@ -566,7 +566,7 @@ slice at a time):
 | Download per part | 7.5 MB, streamed | exactly 150,000 binary STL triangles plus the header (7,500,084 bytes) | same as above |
 | Distinct parts per page id | 20 | the first draft's figure; each part costs one export | "Up to 20 different parts per print." |
 | Mesh bytes per page id | 50 MB | 20 parts at a typical 2.5 MB | "These parts are too large to slice together." |
-| Copies per plate | 30, quantity 1 to 30 each | 30 copies of 512 triangles (15,360 in all) measured at 814 MB peak and 8.7 s; 30 copies of 8,332 triangles (249,960 in all) at 716 MB and 43 s; 50 copies were never measured | "Up to 30 copies per plate; print the rest in a second job." |
+| Copies per plate | 25, quantity 1 to 25 each | lowered from 30 for memory headroom (controller ruling, Sat 10-10): with a realistic part, 30 copies of 9,882 triangles peaked at 886 MB (907,524 KB), only 1.5% under the 900 MB stop rule, and the copy count, not the triangle count, drives memory (table below). Earlier: 30 copies of 512 triangles (15,360 in all) at 814 MB and 8.7 s; 30 copies of 8,332 triangles (249,960 in all) at 716 MB and 43 s | "Up to 25 copies per plate; print the rest in a second job." |
 | Triangles per job, summed over copies | 300,000 | 249,960 took 43 s and 716 MB, 999,960 took 5 min 52 s and 1,087 MB (plan review, Fri 10-09); 300,000 confirmed by the first build task (Sat 10-10, below) | "These copies are too detailed to slice together; lower the quantities." |
 | Plate slice time | 240 s (the sample part keeps 120 s) | 249,960 triangles took 43 s, so a plate at the caps has room on a busier machine | "The slicer took too long on this part." (today's sentence) |
 | Part store on disk, all page ids | 500 MB | backstop: a reload makes a new page id and so escapes the per-page limits | "The print service is busy; try again in a few minutes." |
@@ -587,7 +587,7 @@ All are inside the stop rule, so the caps stand: 150,000 triangles per part, 300
 job. A first measurement with cylinders whose caps were 37,500-triangle fans (slivers)
 peaked at 954 to 1,113 MB for two 150,000-triangle copies; the hub shows that came from
 the sliver facets, not the triangle count. With realistic facets the copy count, not the
-triangle count, drives memory: the 30-copy plate is the one near the 900 MB line.
+triangle count, drives memory: the 30-copy plate is the one near the 900 MB line. So the copy cap came down from 30 to 25, leaving headroom under that line.
 
 The first build task, before the part store exists, slices plates at the limits (30 copies
 with 300,000 triangles in all, and two copies of one 150,000-triangle part) and records
@@ -878,6 +878,6 @@ finding was checked against its evidence before folding.
 30-copy plate at the first draft's job cap: 999,960 triangles took 5 min 52 s and 1,087 MB,
 past both the 120 s slice timeout and the memory rule, and 249,960 took 43 s and 716 MB.
 Folded (3.3, 4.1, 4.6, 5, 12) with the controller's rulings: 300,000 triangles per job,
-150,000 per part, 30 copies per plate, a 240 s plate slice timeout, an explicit export
+150,000 per part, 30 copies per plate (lowered to 25 after Task 0, section 5), a 240 s plate slice timeout, an explicit export
 tessellation, the measurement first with a stop rule at 900 MB or 180 s, and copy numbering
 per sanitized name sent to the owner.
