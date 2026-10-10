@@ -5,6 +5,8 @@ Brainstormed with the owner on Fri 10-09, then reviewed adversarially twice: onc
 Onshape's documentation, its published OpenAPI and experiments in the container, and once
 against the code on `feature/printer-relay`. Revised the same day for the owner's answers (print path only, the Education plan, approval
 to drive Onshape's interface) and for two adversarial reviews of the implementation plan.
+Brought in line with what was built on `feature/onshape-test-bed` on Fri 10-09; each such
+change is marked *(as built)* where it is made, and section 14 lists them.
 
 ## 0. Read this first: three facts that shape the design
 
@@ -192,16 +194,23 @@ API, one `POST …/features` per sketch or extrude:
 | `tb-assembly` | An assembly placing two instances of `tb-box` | Parts reached through an assembly, the way students often work. |
 
 - **Placing documents in the folder.** `POST /documents` takes a `parentId`, which the
-  documentation describes only as the document's parent. The first build task checks that
-  passing the test folder's id puts the document in the folder. If it does not, the
-  automated Onshape UI run moves them once.
+  documentation describes only as the document's parent. `build-docs` checks, by listing
+  the folder again, that passing the test folder's id put the document in the folder. If it
+  did not, `build-docs` writes nothing to that document, marks its `documents.json` entry
+  `pending: not in the test folder`, prints its id with an instruction to move it into the
+  test folder by hand, and exits 1; the next run builds it once it is listed, and never
+  creates it twice. `record --ui` refuses to start while any entry is pending. *(As built:
+  moving documents is not automated.)*
 - **Geometry.** Sketch geometry takes plain numbers in metres; only quantities such as an
   extrude's depth take expressions with units (`"0.5 in"`). Where Onshape's `cube` feature
   gives the same shape, it is the cheaper choice.
 - **Units.** No API endpoint sets a document's units. `tb-inch` is dimensioned in inches,
-  and the first automated Onshape UI run switches its document units to inches in Onshape's
+  and the first automated Onshape UI run switches its workspace units to inches in Onshape's
   interface. Both matter: the geometry tests conversion, and the
-  document setting tests whatever reads it.
+  document setting tests whatever reads it. The run opens the units dialog again and
+  writes `tb-inch-units.txt` in the state directory, so later runs skip the step, only once
+  it reads inches; if it cannot, it stops with a screenshot and says how to do it by hand.
+  *(As built.)*
 - **Rules for writing.** Before every write the tool checks that the target is a test
   document: it is listed in the test folder, its name starts with `tb-`, and its description
   reads `created by PenguinCAM test bed`. It never deletes a document without all three.
@@ -246,10 +255,13 @@ the ledger.
 Scrubbing happens before anything reaches disk, because the repository is public:
 
 - **Removed:** `Authorization` headers in both their bearer and Basic forms, cookies, OAuth
-  tokens, API keys, and the query string of any redirect target outside `*.onshape.com`.
+  tokens, API keys, and the whole query of any exchange whose host is outside
+  `*.onshape.com` (such as a signed storage URL a redirect points to). Replay ignores the
+  query for those hosts. *(As built: the whole query of every foreign exchange, not only
+  the redirect target.)*
 - **Replaced with fixed stand-ins, in requests and responses alike:**
-  - the owner's name, email address and user id;
-  - the ids of the owner's companies and classrooms;
+  - the owner's name (also `firstName` and `lastName`), email address and user id;
+  - the ids and names of the owner's companies and classrooms;
   - any `href` that embeds one of them.
 
   The same stand-in is used in both directions, so a request that carries a company id still
@@ -266,8 +278,9 @@ Scrubbing happens before anything reaches disk, because the repository is public
 - **Checked:** a scrub test fails the build if a cassette or message log contains:
   - the API key's value or its Basic-auth encoding;
   - the password;
-  - anything shaped like a token or an email address;
-  - the owner's user id.
+  - anything shaped like a token, an email address or a signed URL;
+  - the owner's user id, or any user id or name in an owner, creator or sessioninfo object
+    that is not a stand-in.
 
   It names the file and line.
 
@@ -290,7 +303,8 @@ fields removed (timestamps, and microversion ids where the scenario says they va
 recorded exchange is answered once. When all of a request's recorded answers are used up,
 the last one is repeated, so a panel reload or a repeated status call still gets an answer.
 Status polls of an asynchronous translation are the exception: they replay in recorded
-order. Replay skips any wait between polls.
+order, and a poll past the recorded ones gets the 599 below *(as built)*. Replay skips any
+wait between polls.
 
 An unmatched request gets HTTP 599 whose body starts `not in the cassette:` and names the
 method, host and path. The scenario fails on it. 599 is not in the client's retry list, so it
@@ -434,6 +448,8 @@ attaches it again only when the target host ends in `.onshape.com`. It records:
 Then, in replay mode and without any live call, it checks each exported file:
 
 - the mesh's bounding box matches the part's dimensions in millimetres, within 0.1 mm;
+- `tb-assembly` is skipped: an assembly has no part STL export path, and its parts are
+  `tb-box`'s *(as built)*;
 - `tb-box`'s mesh slices with the existing Orca wrapper (`print/slicer.py`) and the fixed
   profile set;
 - `tb-oversized` is larger than the plate in the printer profile.
@@ -461,11 +477,15 @@ why.
 
 1. Start the development server in record mode on port 6238, as the workspace instructions
    describe, with the `ONSHAPE_CLIENT_ID` and `ONSHAPE_CLIENT_SECRET` of PenguinCAM-chondl-dev.
+   Its environment does not carry `ONSHAPE_USERNAME` or `ONSHAPE_PASSWORD`, which it never
+   needs *(as built)*.
 2. Launch real Google Chrome, headed under Xvfb. Its profile directory lives in
    `~/.local/state/penguincam-testbed/chrome-profile/`, outside the repository and outside any
    Docker build context, because it holds the owner's Onshape session cookies. The profile
-   is kept between runs, so Onshape sees a returning browser and the session survives. Grant
-   cad.onshape.com the local network permissions.
+   is kept between runs, so Onshape sees a returning browser and the session survives. Its
+   password manager is turned off before every launch (`credentials_enable_service` and
+   `profile.password_manager_enabled` false), so Chrome never saves the password in it
+   *(as built)*. Grant cad.onshape.com the local network permissions.
 3. Log in at cad.onshape.com with `ONSHAPE_USERNAME` and `ONSHAPE_PASSWORD`, unless the
    kept session is still signed in.
 4. Open each scenario's test document and open the PenguinCAM-chondl-dev panel. Connect it
@@ -476,8 +496,10 @@ why.
    dialog, not by clicking in the 3D view.
 6. Press Done in the checklist strip, run `testbed drift`, and report.
 
-The first run also switches `tb-inch`'s units to inches and records which panel URL the
-development app opens (`/onshape-panel` or the older `/onshape/element-panel`).
+The first run also switches `tb-inch`'s units to inches (section 5.1) and records which
+panel URL the development app opens (`/onshape-panel` or the older
+`/onshape/element-panel`). Every run writes that URL to `panel-url.txt` in the state
+directory, after deleting the previous run's, and prints it in its report *(as built)*.
 
 Rules for the run:
 
@@ -486,10 +508,14 @@ Rules for the run:
 - **Bot checks.** On a CAPTCHA, a challenge page, an unexpected email verification or any
   other sign that Onshape is asking whether this is a person, the run stops, saves a
   screenshot, and asks the owner in chat. It never tries to solve, bypass or disguise
-  itself from such a check.
+  itself from such a check. Exit code 3 *(as built)*.
+- **Failed steps.** Each step is named; a failure stops the run with a screenshot and a
+  message naming the step, exit code 1 *(as built)*.
 - **Writes.** In the interface it changes only test documents, by the rules in section 5.1.
 - **Secrets.** The password goes only into Onshape's login form. It is never logged, put in
-  a screenshot's file name, or written to a file. Screenshots go to
+  a screenshot's file name, or written to a file. Every message the run prints is redacted
+  (the raw and the stripped value, plain, URL-encoded and JSON-escaped), and nothing is
+  chained to the error that leaves the run *(as built)*. Screenshots go to
   `~/.local/state/penguincam-testbed/screenshots/`, never into the repository, because they
   can show the owner's name and email.
 
@@ -537,8 +563,10 @@ print page opens.
 
 - The call ledger is a local file outside the repository
   (`~/.local/state/penguincam-testbed/ledger.jsonl`), with one line per live exchange (each
-  redirect hop and each retry attempt separately): time, scenario, method, path, status, and
-  whether Onshape counts it (2xx and 3xx). It covers the API keys and the development app
+  redirect hop and each retry attempt separately): time, scenario, method, path, status,
+  kind (`response` or `retry`), and whether Onshape counts it (a 2xx or 3xx `response`; a
+  retry attempt's line is kept but not counted, because the response that ends the chain
+  has its own line *(as built)*). It covers the API keys and the development app
   alike.
 - The ledger is per machine. Onshape's My Account → Developer page stays the authority. A run
   on another machine is not in this ledger, which is accepted, because the budget is a share
@@ -553,7 +581,9 @@ print page opens.
   Until then the budget is 250 counted calls, a tenth of the 2,500-call allowance, over a
   rolling year.
 - A 402 from Onshape stops every record-mode command at once and is reported in chat; no
-  retry.
+  retry. It sets a latch in the process, so no further live call is sent even when a
+  client method swallows the error, and the partial recording is discarded *(as built:
+  the latch is per process)*.
 - 429s are retried by the client's existing retry adapter, which honours `Retry-After`.
   Three behaviours of that adapter stay as they are in this sub-project, and the ledger
   shows each of them:
@@ -592,6 +622,8 @@ testbed/
   ui_run.py             automated Onshape UI run (5.9)
   scripts/install-chrome.sh
   cassettes/, messages/ committed recordings
+  documents.json        the test documents' ids (5.1)
+  .fresh/               cassettes/, messages/, drift-report.md; git-ignored
   fixtures/             team-config-fixture.yaml
   requirements.txt      playwright==1.63.0; development only
   tests/
@@ -605,7 +637,8 @@ Changes outside `testbed/`, all inert unless `PENGUINCAM_TESTBED` is set:
   - `get_client` and `update_session_tokens` change as in 5.5.
 - `frc_cam_gui_app.py`:
   - the import-time guards (5.6);
-  - registering the test bed's routes and the template flag;
+  - registering the test bed's routes and the template flag, with the `/testbed/*` routes
+    exempt from the app's rate limiter *(as built)*;
   - the `/onshape/status` change (5.5).
 - `print/templates/print_wizard.html`: one conditional `<script>` tag that loads the
   checklist strip. The CNC template is not changed.
@@ -639,6 +672,9 @@ owner runs Onshape checkpoints goes in the notes repository's `guides/`.
 | Message sent by the strip | `messageId` `testbed-<n>`, n counting from 1 per page load | ephemeral | `testbed/panel/` | none |
 | Stand-ins for the owner | user id `000000000000000000000001`, companies `0000000000000000000000c1`, `…c2`, …, email `testbed@example.invalid`, name `Test Bed Owner` | durable in committed recordings | `testbed/scrub.py` constants | changing them re-records nothing; only the scrubber and tests change |
 | Session flag | `testbed_apikey` | per browser session, replay mode only | `testbed/flask_hooks.py` | none |
+| Company and classroom name stand-in *(as built)* | `Test Bed Classroom <n>`, n matching the company id stand-in | durable in committed recordings | `testbed/scrub.py` (`standin_company_name`) | as for the other stand-ins |
+| Test bed settings *(as built)* | `TESTBED_FOLDER_ID`, `TESTBED_BUDGET`, `TESTBED_CYCLE_START`, `TESTBED_RUN_CAP`, `TESTBED_CHROMIUM`, `TESTBED_CASSETTE_DIR`, `TESTBED_MESSAGE_DIR` | durable | `testbed/settings.py`; PenguinCAM's `docs/ONSHAPE_TEST_BED.md` | renaming one changes `settings.py` and the guide in the same commit |
+| State files *(as built)* | `ledger.jsonl`, `tb-inch-units.txt`, `panel-url.txt`, `logs/`, `screenshots/`, `chrome-profile/` under `~/.local/state/penguincam-testbed/` | per machine | `testbed/ledger.py`, `testbed/ui_run.py` | deleting `tb-inch-units.txt` makes the next run switch the units again |
 
 ## 10. Error handling
 
@@ -648,7 +684,8 @@ owner runs Onshape checkpoints goes in the notes repository's `guides/`.
 | `ONSHAPE_ACCESS_KEY` or `ONSHAPE_SECRET_KEY` missing | The live API check and `build-docs` stop and name the missing variable. Replay mode needs neither. |
 | `ONSHAPE_USERNAME` or `ONSHAPE_PASSWORD` missing | The automated Onshape UI run stops and names the variable. |
 | `ONSHAPE_CLIENT_ID` or `ONSHAPE_CLIENT_SECRET` missing, or the production id | The development server refuses to start in record mode and names the variable. |
-| The test folder's id is not set | `build-docs` stops and asks for it. |
+| The test folder's id is not set | `build-docs` stops and asks for it (`TESTBED_FOLDER_ID`, exit 2). |
+| A new document landed outside the test folder *(as built)* | `build-docs` marks it pending, says to move it by hand, exits 1; `record --ui` refuses while any document is pending. |
 | Onshape shows a CAPTCHA, a challenge or a verification step | The automated Onshape UI run stops, saves a screenshot, and asks the owner. |
 | Onshape's interface has changed so a step cannot find its control | The run stops at that step with a screenshot; the step is fixed, or an Onshape checkpoint covers it. |
 | 402 from Onshape | All record-mode commands stop; reported in chat. |
@@ -712,3 +749,27 @@ Reported for the owner, not acted on here:
    ```
 
    Then start a new container shell so they arrive in the environment.
+
+## 14. Changes made during implementation
+
+Each is marked *(as built)* where it is made above.
+
+- 5.1: documents created outside the test folder are marked pending and moved by hand, not
+  by the automated Onshape UI run; `record --ui` refuses while any is pending.
+- 5.1: the `tb-inch` units switch is checked by reading the units dialog again before the
+  run records it as done.
+- 5.2: the whole query of every exchange outside `*.onshape.com` is dropped, not only a
+  redirect target's; first and last names and company names are replaced too; the scrub
+  test also checks for signed URLs and non-stand-in user ids and names.
+- 5.3: a translation poll past the recorded ones gets the 599.
+- 5.7: `part-export` skips `tb-assembly`.
+- 5.9: the record development server's environment drops the Onshape sign-in variables;
+  the kept Chrome profile's password manager is off; the panel URL is kept in
+  `panel-url.txt`, stale copies deleted; named steps with exit codes 1 and 3; redaction of
+  every printed message.
+- 7: retry attempt lines are kept but not counted; a 402 latches per process.
+- 8: the `/testbed/*` routes are exempt from the rate limiter; `documents.json` and the
+  `.fresh/` layout are listed.
+- 9: new rows for the company and classroom name stand-in (`Test Bed Classroom <n>`), the
+  test bed settings and the state files.
+- 10: a row for documents created outside the test folder.

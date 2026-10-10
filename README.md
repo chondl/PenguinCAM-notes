@@ -15,12 +15,13 @@ plan and test changes lives here, and nothing in PenguinCAM links to this reposi
 | `prompts/` | Prompts that drove agent build sessions |
 | `research/` | Background research |
 | `handoffs/` | Where-we-left-off notes for picking work back up |
-| `guides/` | How-tos specific to my machines, e.g. [testing the printer relay from a Mac](guides/PRINTER_DEV_TESTING.md) |
+| `guides/` | How-tos specific to my machines, e.g. [testing the printer relay from a Mac](guides/PRINTER_DEV_TESTING.md), [running an Onshape checkpoint](guides/ONSHAPE_CHECKPOINT.md) |
 
 ## Current work: 3D printing
 
 - [Roadmap after the first relay test, 2026-10-09](plans/2026-10-09-print-roadmap.md)
-- Onshape test bed: [design spec](specs/2026-10-09-onshape-test-bed-design.md)
+- Onshape test bed: [design spec](specs/2026-10-09-onshape-test-bed-design.md),
+  [running an Onshape checkpoint](guides/ONSHAPE_CHECKPOINT.md)
 - [Where we left off, 2026-09-14](handoffs/2026-09-14-print-handoff.md)
 - Stage 1, slicing with Orca Slicer: [design spec](specs/2026-09-13-3d-print-slicing-design.md)
 - The Bambu printer relay: [design spec](specs/2026-09-13-bambu-printer-relay-design.md),
