@@ -20,8 +20,11 @@ plan and test changes lives here, and nothing in PenguinCAM links to this reposi
 ## Current work: 3D printing
 
 - [Roadmap after the first relay test, 2026-10-09](plans/2026-10-09-print-roadmap.md)
+- [Onshape test bed and milestone 1 build: where it stands, 2026-10-09](handoffs/2026-10-09-onshape-test-bed-and-milestone-1-build.md)
 - Onshape test bed: [design spec](specs/2026-10-09-onshape-test-bed-design.md),
   [running an Onshape checkpoint](guides/ONSHAPE_CHECKPOINT.md)
+- Milestone 1 print features in Onshape: [design spec](specs/2026-10-09-print-onshape-features-design.md),
+  [plan](plans/2026-10-09-print-onshape-features.md)
 - [Where we left off, 2026-09-14](handoffs/2026-09-14-print-handoff.md)
 - Stage 1, slicing with Orca Slicer: [design spec](specs/2026-09-13-3d-print-slicing-design.md)
 - The Bambu printer relay: [design spec](specs/2026-09-13-bambu-printer-relay-design.md),
