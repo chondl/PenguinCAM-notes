@@ -503,7 +503,15 @@ gate"; that is noted per item.
   (for example: the part has gaps or very thin features at about 105 mm; turn Supports on or
   repair the mesh). Add the job's overrides, parts and per-copy orientations to
   `slice_queued`, and mesh health (watertight, shell count) to `export`.
-- **Open questions:** Warn at upload or at the Parts step when a part is not watertight, or
+- **Owner, Sun 10-11:** "if a mesh fails because supports are off, we should be clear about
+  the error and how to fix." So when Orca reports empty layers and Supports is off, the
+  message names the part and the height and says what to do: turn Supports on and slice
+  again. When Supports is already on and Orca still reports empty layers, the message says
+  the mesh itself is faulty and needs repairing in CAD, because turning Supports on cannot
+  help. Each message has a reproducing case in the error-path test campaign (section 6.10);
+  the Eiffel tower file is the first.
+- **Open questions:** Offer a "Turn on Supports and slice again" button in the message, or
+  only the sentence? Warn at upload or at the Parts step when a part is not watertight, or
   only explain after a failure? Show Orca's own words, or only PenguinCAM's sentence?
 - **Dependencies:** none; these are the first cases of the error-path test campaign
   (section 6.10).
