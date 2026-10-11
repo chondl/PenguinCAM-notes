@@ -25,7 +25,9 @@ Sun 10-11.
 - **The investigation found both causes (section 5).** The `-100` failures came from one
   broken STL sliced with supports off, and the print path's sentence for `-100` is wrong (a
   bug). The early limit was the plate triangle cap, which measures the wrong thing: Orca's
-  memory follows part volume and copies, not triangles.
+  memory follows part volume and copies, not triangles. The next step there is to
+  characterize the hosting requirement from the plates the team wants to print, then
+  choose hosting that meets it (section 6.9).
 - **First thing on restart:** read section 5, start local mode (section 2), then settle the
   open questions in section 6 with the owner before writing a design spec for the next work.
 
@@ -63,6 +65,8 @@ copy, plate, part store) hold here too.
 | **assembly import** | The proposed one-button import of an assembly's parts with their counts (section 6.3). |
 | **layer preview** | The proposed layer slider on the Preview step (section 6.5). |
 | **plate triangle cap** | The limit of 300,000 triangles summed over every copy on the plate (`MAX_JOB_TRIANGLES`), checked in the browser and on the server. |
+| **reference plate** | One plate from a chosen set of plates the print path must be able to slice; the set defines what "big enough" means (section 6.9). |
+| **hosting requirement** | What the slicing host must provide, derived from measuring the reference plates: memory per slice, CPU, disk, concurrent slices and timeout (section 6.9). |
 | **memory model** | The investigation's rough fit for Orca's peak memory: about 100 MB plus 1 MB per 1,000 mm³ of part volume on the plate, times 1.3 to 1.5 with supports (section 5). |
 | **slicing progress** | What the browser shows while Orca slices (section 6.6). |
 | **error-path test campaign** | The planned pass over every error the print path can show, its sentence and its print event (section 6.10). |
@@ -336,8 +340,9 @@ followed the same day. The full account, with every measurement, is the
 - **Measured options.** One shared mesh for all copies of a part: 2 to 3 times faster and
   15 to 26% less memory, but Orca blanks the copies' names (the printer's skip-object list
   and the name check break). Decimation: 0.05 s and accurate (bunny 112,402 to 25,000
-  triangles deviates 0.033 mm at p99), but it saves time, not memory. The Railway plan's
-  memory is still unmeasured.
+  triangles deviates 0.033 mm at p99), but it saves time, not memory. What the host must
+  provide for the plates the team wants to print has not been characterized yet
+  (section 6.9).
 
 **Other findings**
 
@@ -351,9 +356,10 @@ followed the same day. The full account, with every measurement, is the
 
 All of this refines milestone 1 of the [print roadmap](../plans/2026-10-09-print-roadmap.md)
 (the Layout step, profiles, multiple parts, supportability). Milestone 2 (the daemon) and
-milestone 3 (shipping) are unchanged by the feedback, with one note: cancellation and
-slicing progress (sections 6.6, 6.7) bear on the Railway deployment in milestone 3, where
-Orca's memory and time matter most. The owner marked some items as not needed "out of the
+milestone 3 (shipping) is changed in one way: hosting is no longer a given. The owner, Sun
+10-11: "We may change the backend as necessary to support this application." The hosting
+requirement (section 6.9) decides where slicing runs, and cancellation and slicing progress
+(sections 6.6, 6.7) bear on it. The owner marked some items as not needed "out of the
 gate"; that is noted per item.
 
 ### 6.1 Maintain the test bed long-term
@@ -490,7 +496,7 @@ gate"; that is noted per item.
   event stream closes at once, but a reload should not kill a job it could reattach to)? Is
   a closed page also a cancelled export of parts from Onshape?
 - **Dependencies:** the same change to how Orca is run as slicing progress (section 6.6).
-  Matters most on Railway, where one worker runs Orca (milestone 3).
+  Matters most on the deployed host, where one worker runs Orca as built.
 
 ### 6.8 The `-100` error and its debuggability
 
@@ -516,26 +522,45 @@ gate"; that is noted per item.
 - **Dependencies:** none; these are the first cases of the error-path test campaign
   (section 6.10).
 
-### 6.9 Plate limits hit early
+### 6.9 Plate limits and the hosting requirement
 
 - **Asked:** "we did hit the limits in terms of the complexity of the plate and it feels
   like we're hitting that pretty early ... we should be looking at how we can handle bigger
   more complicated plates."
-- **Means (from the findings in section 5):** replace the plate triangle cap with a cap from
-  the memory model: compute each part's volume at export (bounding box for a mesh that is
-  not watertight), sum over copies, add a supports factor, and refuse above the measured
-  ceiling. Keep a per-part triangle cap for parsing time, or decimate above it instead of
-  refusing. This lets two or three large organic parts through and stops the 6-bunny plate
-  that passes every cap as built.
-- **Steps:** measure the Railway plan's memory first, since it sets the ceiling and how
-  many slices may run at once; calibrate the memory model with more shapes (it rests on
-  three) using `print/scripts/measure_plate.py`; then decide on decimation and on a shared
-  mesh per part.
-- **Open questions:** Is a shared mesh per part worth a spike to restore copy names (it is
-  the largest time saving)? Decimate silently, or tell the student? What is the Railway
-  plan's memory?
-- **Dependencies:** Railway (milestone 3); the build report's measurements (its section
-  6.3); the {R}.
+- **Owner, Sun 10-11:** "The document should talk about how we can characterize the hosting
+  requirements for the types of plates and models we want to be able to print. Then we'll
+  figure out how to get hosting that is able to support the plates we want to print." And:
+  "We may end up using AWS or Cloudflare containers or we may stick with Railway and just a
+  bigger container."
+- **Means:** work from the plates the team wants to print to the hosting requirement, then
+  to hosting, and set the app's plate caps from the same measurements, so the caps follow
+  what the host can actually do.
+  1. **Define the reference plates.** A proposed starting set: a typical FRC mechanism plate
+     of several different functional parts; a full plate of small copies (up to the copy
+     cap); a large single organic part; a plate of two or three large organic parts; and
+     one of these with supports on.
+  2. **Measure each reference plate with real Orca:** peak memory, CPU time, wall time,
+     output file size, and how many slices can run at once on one machine. The memory
+     model from section 5 guides the set: memory follows printed volume times copies, with
+     supports adding 30 to 50%; triangles do not drive it. Extend
+     `print/scripts/measure_plate.py` for this.
+  3. **Turn the results into the hosting requirement:** memory per slice, CPU, disk,
+     concurrent slices, and the slice timeout.
+  4. **Turn the same results into the plate caps:** replace the plate triangle cap with a
+     cap from the memory model (part volume at export, the bounding box for a mesh that is
+     not watertight, summed over copies, times a supports factor), set at what the chosen
+     host can hold. Keep a per-part triangle cap for parsing time, or decimate above it.
+  5. **Choose hosting that meets the hosting requirement.** Candidates to evaluate, with no
+     recommendation; the choice follows the measurements: AWS, Cloudflare Containers, and
+     Railway (the current deployment) with a bigger container. Slicing could also move to a
+     separate worker or service apart from the web server; that is an option, not a
+     decision.
+- **Open questions:** Which plates are in the reference set (the list above is a proposal)?
+  How many students slice at once at the busiest time (build season)? Is a shared mesh per
+  part worth a spike to restore copy names (it is the largest time saving)? Decimate
+  silently, or tell the student?
+- **Dependencies:** the measurements in the build report (its section 6.3) and the
+  [local mode errors and limits research](../research/2026-10-11-local-mode-errors-and-limits.md); milestone 3 (shipping) takes its hosting from this item.
 
 ### 6.10 Error-path test campaign
 
@@ -634,14 +659,14 @@ rate limiter behind Railway's proxy, and a missing full stop.
 
 Riskiest first. Risk here is risk in feasibility or in the resources the item needs.
 Revisited after the investigation (section 5): the plate limits stay second but for a new
-reason (the caps admit plates that may not fit Railway, not only refuse harmless ones);
+reason (what the reference plates need is unknown, and the caps measure the wrong thing);
 the `-100` item drops to low risk because its cause is known; cancellation stays low because
 no orphaned Orca was found and the gap is only a missing cancel path.
 
 | Item | What makes it risky |
 |---|---|
 | Validation run (section 7.1) | Feasibility: every Onshape selector after sign-in's first field, the OAuth popup and every message shape are unverified; a bot check can stop the automated Onshape UI run. Resources: counted calls from a budget of 250, the owner's credentials and time. |
-| Plate limits (section 6.9) | Feasibility and resources: plates that pass every cap as built peak at 1.7 to 2.3 GB, and the Railway plan's memory is unmeasured, so a deployed server could run out of memory; the memory model rests on three shapes; a shared mesh per part needs an untested fix for copy names. |
+| Plate limits and the hosting requirement (section 6.9) | Feasibility and resources: we do not know what the reference plates need, and the caps as built do not measure the right thing (plates that pass every cap peak at 1.7 to 2.3 GB, while harmless ones are refused); the memory model rests on three shapes; the hosting chosen from the measurements may mean moving the backend. |
 | 3D Layout step (section 6.4) | Feasibility: 3D orbit, drag and face-pick in a panel of about 320 px; the confirmed any-face lay down replaces the six-footprint model mirrored in Python and JavaScript with a general rotation, which Orca has so far been checked to keep only for axis-aligned orientations. |
 | Layer preview (section 6.5) | Feasibility: G-code for a full plate can be large to fetch and draw in a narrow panel; WebGL is required. |
 | Slicing progress (section 6.6) | Feasibility: unknown whether headless Orca reports stages at all; without it, only an estimate is possible. |

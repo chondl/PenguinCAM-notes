@@ -166,8 +166,9 @@ Findings:
   deviates p99 0.033 mm (max 0.06), far below a 0.6 mm nozzle and 0.24 mm layers; 112k → 10k gives p99 0.10 mm. It
   mostly buys time and per-part-cap headroom, not memory. Decimating the Eiffel to 50k reaches max 1.07 mm deviation
   (thin lattice) and does not fix its empty layers.
-- **Server memory.** The Railway plan's memory is still unmeasured (`docs/DEPLOYMENT_GUIDE.md` line ~395), so whether
-  a 1.5–2.5 GB slice fits is open. This container has 7.9 GB total.
+- **Host memory.** What the slicing host must provide has not been characterized; the plates measured here reach
+  1.5–2.5 GB per slice. This container has 7.9 GB total. The current deployment's memory is not recorded
+  (`docs/DEPLOYMENT_GUIDE.md` line ~395).
 
 **Options, with the evidence for each.**
 1. *Replace the plate triangle cap with a memory model.* Compute mesh volume (numpy, at export; watertight meshes
@@ -179,7 +180,10 @@ Findings:
 3. *Decimate oversized parts automatically* (for example to ≤ 50k when p99 deviation stays under about 0.05 mm) instead
    of refusing "too detailed". Requires `fast-simplification` (or similar) in `requirements.txt`.
 4. *Instancing* for repeated copies, if the naming can be solved. It is the largest time win (2–3x).
-5. *Measure the Railway plan* before raising anything; the memory model decides `MAX_RUNNING` too.
+5. *Characterize the hosting requirement* before raising anything: measure a set of reference plates (the plates the
+   team wants to print) and derive memory per slice, CPU, disk, concurrent slices and timeout; set the caps and
+   `MAX_RUNNING` from it, then choose hosting that meets it (see section 6.9 of the
+   [print path restart notes](../handoffs/2026-10-11-print-path-restart-notes.md)).
 
 ## Q3. Other errors and browser-close behaviour
 
@@ -205,7 +209,7 @@ Findings:
    Optionally warn at upload when a part is not watertight.
 3. Replace `MAX_JOB_TRIANGLES` with a volume-based memory model calibrated by measurement; keep or decimate at the
    per-part cap.
-4. Measure the Railway plan's memory; then decide instancing (after a naming spike) and the copy cap.
+4. Characterize the hosting requirement from reference plates; then decide instancing (after a naming spike) and the copy cap.
 5. Make `parked` a non-error event, and consider a cancel when the SSE client disconnects.
 
 ## Evidence
