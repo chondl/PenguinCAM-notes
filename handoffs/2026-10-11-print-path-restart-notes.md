@@ -307,7 +307,9 @@ followed the same day. The full account, with every measurement, is the
   zero-thickness slivers), with a thin open lattice near the top. With supports off, Orca
   finds empty layers at about 105 to 106 mm and 111 to 113 mm and refuses. The one Eiffel
   plate that sliced (Sun 10-11 10:04 PT) had supports on. Raw Orca on the bare STL fails the
-  same way, so the cause is the file, not PenguinCAM's placement or 3MF.
+  same way, so the cause is the file, not PenguinCAM's placement or 3MF. There was one Eiffel
+  tower file (a 35.3 MB ASCII STL, 7.0 MB once local mode converted it to binary); plates with
+  "2 x L3" held two copies of that one part.
 - **`-100` is Orca's general "slicing failed" code.** Its real reason, "Object can't be
   printed for empty layer between 105.42 and 106.14 … the object has faulty mesh", was in
   Orca's `result.json`, which the print path reads only on success and deletes with the
