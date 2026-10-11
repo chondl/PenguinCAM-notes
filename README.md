@@ -19,6 +19,10 @@ plan and test changes lives here, and nothing in PenguinCAM links to this reposi
 
 ## Current work: 3D printing
 
+**Restart here:** [print path restart notes, Sun 10-11](handoffs/2026-10-11-print-path-restart-notes.md),
+with the [investigation of local mode errors and plate limits](research/2026-10-11-local-mode-errors-and-limits.md).
+Work paused there; the next step is a brainstorm of its section 6.
+
 - [Roadmap after the first relay test, 2026-10-09](plans/2026-10-09-print-roadmap.md)
 - [Onshape test bed and milestone 1 build: where it stands, 2026-10-09](handoffs/2026-10-09-onshape-test-bed-and-milestone-1-build.md)
 - Onshape test bed: [design spec](specs/2026-10-09-onshape-test-bed-design.md),
