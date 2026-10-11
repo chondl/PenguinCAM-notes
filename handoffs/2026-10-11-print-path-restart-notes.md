@@ -22,9 +22,12 @@ Sun 10-11.
   local mode: the `-100` "no flat face on the plate" error and plate limits hit early with
   organic shapes (section 6; the investigation is section 5). The owner also asked for an
   error-path test campaign (section 6.10) and confirmed the 3D Layout step's design.
-- **First thing on restart:** read section 5 (the investigation of those two problems),
-  start local mode (section 2) and reproduce them, then settle the open questions in
-  section 6 with the owner before writing a design spec for the next work.
+- **The investigation found both causes (section 5).** The `-100` failures came from one
+  broken STL sliced with supports off, and the print path's sentence for `-100` is wrong (a
+  bug). The early limit was the plate triangle cap, which measures the wrong thing: Orca's
+  memory follows part volume and copies, not triangles.
+- **First thing on restart:** read section 5, start local mode (section 2), then settle the
+  open questions in section 6 with the owner before writing a design spec for the next work.
 
 ## Contents
 
@@ -59,6 +62,8 @@ copy, plate, part store) hold here too.
 | **advanced mode** | The proposed full-pane view with every slicing setting (section 6.2). |
 | **assembly import** | The proposed one-button import of an assembly's parts with their counts (section 6.3). |
 | **layer preview** | The proposed layer slider on the Preview step (section 6.5). |
+| **plate triangle cap** | The limit of 300,000 triangles summed over every copy on the plate (`MAX_JOB_TRIANGLES`), checked in the browser and on the server. |
+| **memory model** | The investigation's rough fit for Orca's peak memory: about 100 MB plus 1 MB per 1,000 mm³ of part volume on the plate, times 1.3 to 1.5 with supports (section 5). |
 | **slicing progress** | What the browser shows while Orca slices (section 6.6). |
 | **error-path test campaign** | The planned pass over every error the print path can show, its sentence and its print event (section 6.10). |
 | **Orca's Prepare tab, Orca's Preview tab** | The two views of the Orca Slicer desktop app the owner points to as models. |
@@ -197,7 +202,7 @@ apart.
 |---|---|
 | Selection and export | Click parts in a Part Studio or an Assembly (through subassemblies), or use **Add from another document…** (Onshape's select dialog). Configurations pass through. Each part is exported once as a binary millimetre STL with an explicit tessellation (0.05 mm, 7.5°) and kept in the part store for an hour; **Refresh from Onshape** re-exports. |
 | Layout step | Copies drawn as 2D footprints on the plate at panel width: drag, rotate by 90° or any angle, **Lay flat** in six orientations, duplicate, delete, **Arrange**. Copies too close (5 mm), off the plate (3 mm margin) or too tall turn red and block Next. The server checks the same rules again; the geometry is mirrored in Python and JavaScript against one shared file of test cases. |
-| Multiple parts and copies | Up to 20 distinct parts and 25 copies per plate; 150,000 triangles per part and 300,000 per plate; 50 MB per page id; 240 s plate slice timeout. Each limit has a plain sentence. One 3MF object per copy, so every copy keeps its name (`Bracket #2`) on the printer's skip-object list. |
+| Multiple parts and copies | Up to 20 distinct parts and 25 copies per plate; 150,000 triangles per part and 300,000 per plate (the plate triangle cap); 50 MB per page id; 240 s plate slice timeout. Each limit has a plain sentence. One 3MF object per copy, so every copy keeps its name (`Bracket #2`) on the printer's skip-object list. |
 | Profiles | A committed catalog of Orca's H2S family profiles; the team config's `printing:` section picks printer, filaments and processes; the Setup step offers them with four student overrides: infill, walls, supports, brim. |
 | Print events | One `[PRINT]` log line per step (`page`, `config`, `select`, `export`, `export_failed`, `layout`, `slice_queued`, `slice_done`, `slice_failed`, `deliver`, `client_error`, `request`), each with the page id and team. Every error the page shows goes through `showError` and is reported as a `client_error` event. |
 | Preview step | The sliced plate in 3D (three.js) with every copy where the Layout step placed it; download, Drive, Send to Printer. |
@@ -289,24 +294,56 @@ Everything below is settled only by the validation run (section 7.1):
 
 ## 5. Investigation of the errors seen in local mode
 
-When the owner tried local mode on Sun 10-11, two problems came up. An investigation of the
-server log ran in parallel with the writing of this document.
+When the owner tried local mode on Sun 10-11 (10:02 to 10:25 PT), two problems came up: every
+slice of some plates failed with Orca's `-100`, and the limits stopped plates that seemed
+small. An investigation of the server log, the metrics database and offline reruns of Orca
+followed the same day. The full account, with every measurement, is the
+[local mode errors and limits research](../research/2026-10-11-local-mode-errors-and-limits.md).
 
-**Questions:**
+**The `-100` failures**
 
-1. Why did slicing keep failing with the `-100` error, shown as "A part has no flat face on
-   the plate; choose another Lay flat." (the owner remembers it as "the part was not
-   touching the plane")? Was the part's placement wrong, or the orientation chosen, or the
-   mesh itself (for example an organic shape with no flat face)?
-2. Did the print events capture enough to debug it from the server log alone? The owner:
-   "there was really no information in the client about how to debug that ... I don't know
-   if our supportability logging caught that. You should check that."
-3. Why were the plate limits hit so early? The owner: "we were using some pretty organic
-   shapes but they weren't that big." Which limit was hit (triangles per plate, per part,
-   copies), and was it the export's tessellation, the uploaded mesh's density, or the limit
-   itself?
+- **All four failed plates held the Eiffel tower STL** (part `L3`); every plate without it
+  sliced. The mesh is broken: not watertight, 889 shells (one main shell plus about 888
+  zero-thickness slivers), with a thin open lattice near the top. With supports off, Orca
+  finds empty layers at about 105 to 106 mm and 111 to 113 mm and refuses. The one Eiffel
+  plate that sliced (Sun 10-11 10:04 PT) had supports on. Raw Orca on the bare STL fails the
+  same way, so the cause is the file, not PenguinCAM's placement or 3MF.
+- **`-100` is Orca's general "slicing failed" code.** Its real reason, "Object can't be
+  printed for empty layer between 105.42 and 106.14 … the object has faulty mesh", was in
+  Orca's `result.json`, which the print path reads only on success and deletes with the
+  scratch directory on failure.
+- **The print path's sentence for `-100` is wrong, a bug to fix.** "A part has no flat face
+  on the plate; choose another Lay flat." rested on one earlier case (a box standing on an
+  edge). It sent the owner to Lay flat, which cannot help.
+- **The print events showed that** every failure was `-100` and involved `L3`, **not why**.
+  Missing from the log: Orca's reason; the job's overrides (supports, walls, infill, brim);
+  the parts and per-copy orientations on the plate (only counts); and mesh health on
+  `export` (watertight, shell count), which would have flagged `L3` at upload.
 
-**Findings: pending.**
+**The plate limits**
+
+- **Only the plate triangle cap fired**, three times, in the browser. The page held the
+  Eiffel tower (139,989 triangles) and the Stanford bunny (112,402), so a second copy of
+  either passed 300,000. No other limit fired.
+- **Triangles are the wrong measure.** Measured on Orca (aarch64 Linux, 6 cores): 6 bunnies
+  at 674,412 triangles peaked at 1,739 MB; the same 6 decimated to 60,000 triangles still
+  peaked at 1,525 MB. Memory follows the memory model, part volume times copies, with
+  supports adding 30 to 50%. So the caps both refuse harmless plates and admit plates of
+  1.7 to 2.3 GB: 6 bunnies at 25,000 triangles each pass every cap and peak at 1,714 MB, or
+  2,288 MB with supports, against the 900 MB stop rule.
+- **Measured options.** One shared mesh for all copies of a part: 2 to 3 times faster and
+  15 to 26% less memory, but Orca blanks the copies' names (the printer's skip-object list
+  and the name check break). Decimation: 0.05 s and accurate (bunny 112,402 to 25,000
+  triangles deviates 0.033 mm at p99), but it saves time, not memory. The Railway plan's
+  memory is still unmeasured.
+
+**Other findings**
+
+- No exceptions, no 4xx or 5xx answers, no orphaned Orca process.
+- Closing the browser cannot cancel a slice: it only drops the event stream, and the job
+  runs to its end or to the 240 s timeout.
+- The "New copies are waiting beside the plate" hint is logged as a `client_error` (six of
+  them), which is noise in the log.
 
 ## 6. Next work
 
@@ -443,9 +480,10 @@ gate"; that is noted per item.
   deal with cancellation on the browser side. If the browser just closes, we need to make
   sure the server side cleans up okay."
 - **Means:** a Cancel button while slicing, and a server that notices a closed page, stops
-  Orca, removes the job's files and frees the worker. As built, there is no cancel path: a job
-  runs to its end or to the 240 s timeout, and its record expires an hour after its last
-  update.
+  Orca, removes the job's files and frees the worker. As built, nothing cancels a slice when
+  the browser leaves: the investigation confirmed that closing the page only drops the event
+  stream (section 5), so the job runs to its end or to the 240 s timeout, and its record
+  expires an hour after its last update. No orphaned Orca process was found.
 - **Open questions:** How long after the page goes away should the server give up (the
   event stream closes at once, but a reload should not kill a job it could reattach to)? Is
   a closed page also a cancelled export of parts from Onshape?
@@ -457,26 +495,37 @@ gate"; that is noted per item.
 - **Asked:** "Every time we ran it, it just said the part was not touching the plane and
   there was really no information in the client about how to debug that ... I don't know if
   our supportability logging caught that. You should check that."
-- **Means:** find the cause (section 5), then make the error say which copy and what to do,
-  and make the print events carry what a supporter needs to reproduce it (which copies, their
-  orientations).
-- **Open questions:** settled by the investigation's findings.
-- **Dependencies:** section 5; the 3D Layout step (section 6.4) may remove the cause; the
-  error-path test campaign (section 6.10) covers this error with every other.
+- **Means (from the findings in section 5):** stop mapping `-100` to "no flat face"; on
+  every failed slice, read Orca's `result.json` before the scratch directory is deleted, log
+  its reason in the `slice_failed` event and show a trimmed, plain version to the student
+  (for example: the part has gaps or very thin features at about 105 mm; turn Supports on or
+  repair the mesh). Add the job's overrides, parts and per-copy orientations to
+  `slice_queued`, and mesh health (watertight, shell count) to `export`.
+- **Open questions:** Warn at upload or at the Parts step when a part is not watertight, or
+  only explain after a failure? Show Orca's own words, or only PenguinCAM's sentence?
+- **Dependencies:** none; these are the first cases of the error-path test campaign
+  (section 6.10).
 
 ### 6.9 Plate limits hit early
 
 - **Asked:** "we did hit the limits in terms of the complexity of the plate and it feels
   like we're hitting that pretty early ... we should be looking at how we can handle bigger
   more complicated plates."
-- **Means:** find which limit and why (section 5), then raise what the plate can hold. The
-  limits were set from measurements on Orca (300,000 triangles and 25 copies per plate, to
-  stay under 900 MB and 180 s); options include simplifying meshes before slicing,
-  re-measuring with organic shapes, or measured higher limits.
-- **Open questions:** settled in part by the investigation; what memory the Railway plan
-  allows (unchecked, milestone 3).
-- **Dependencies:** section 5; Railway memory (milestone 3); the build report's
-  measurements (its section 6.3).
+- **Means (from the findings in section 5):** replace the plate triangle cap with a cap from
+  the memory model: compute each part's volume at export (bounding box for a mesh that is
+  not watertight), sum over copies, add a supports factor, and refuse above the measured
+  ceiling. Keep a per-part triangle cap for parsing time, or decimate above it instead of
+  refusing. This lets two or three large organic parts through and stops the 6-bunny plate
+  that passes every cap as built.
+- **Steps:** measure the Railway plan's memory first, since it sets the ceiling and how
+  many slices may run at once; calibrate the memory model with more shapes (it rests on
+  three) using `print/scripts/measure_plate.py`; then decide on decimation and on a shared
+  mesh per part.
+- **Open questions:** Is a shared mesh per part worth a spike to restore copy names (it is
+  the largest time saving)? Decimate silently, or tell the student? What is the Railway
+  plan's memory?
+- **Dependencies:** Railway (milestone 3); the build report's measurements (its section
+  6.3); the {R}.
 
 ### 6.10 Error-path test campaign
 
@@ -511,6 +560,10 @@ gate"; that is noted per item.
 - **For each row:** how it is triggered; what the student sees; whether the sentence says
   what to do next; and which `[PRINT]` line the server logs, and whether that line alone is
   enough to diagnose it.
+- **First cases**, from the investigation (section 5): the `-100` mis-mapping and showing
+  Orca's own reason (section 6.8); checks on the mesh before slicing, such as a warning for a
+  part that is not watertight; the "New copies are waiting beside the plate" hint moved out
+  of `client_error`.
 - **How it runs:** in local mode, with a set of deliberately bad STL files kept as test
   fixtures (no flat face, a sliver mesh, a part larger than the plate, a part too dense, a
   broken file). Onshape failures that local mode cannot produce go through replay mode with
@@ -570,18 +623,22 @@ rate limiter behind Railway's proxy, and a missing full stop.
 ## 8. Order of work, by risk
 
 Riskiest first. Risk here is risk in feasibility or in the resources the item needs.
+Revisited after the investigation (section 5): the plate limits stay second but for a new
+reason (the caps admit plates that may not fit Railway, not only refuse harmless ones);
+the `-100` item drops to low risk because its cause is known; cancellation stays low because
+no orphaned Orca was found and the gap is only a missing cancel path.
 
 | Item | What makes it risky |
 |---|---|
 | Validation run (section 7.1) | Feasibility: every Onshape selector after sign-in's first field, the OAuth popup and every message shape are unverified; a bot check can stop the automated Onshape UI run. Resources: counted calls from a budget of 250, the owner's credentials and time. |
-| Plate limits (section 6.9) | Feasibility: Orca's memory and time grow fast with dense meshes (one sliver-faceted plate inside the limits peaked over 1 GB); the Railway plan's memory is unknown. The cause is not yet known (section 5). |
+| Plate limits (section 6.9) | Feasibility and resources: plates that pass every cap as built peak at 1.7 to 2.3 GB, and the Railway plan's memory is unmeasured, so a deployed server could run out of memory; the memory model rests on three shapes; a shared mesh per part needs an untested fix for copy names. |
 | 3D Layout step (section 6.4) | Feasibility: 3D orbit, drag and face-pick in a panel of about 320 px; the confirmed any-face lay down replaces the six-footprint model mirrored in Python and JavaScript with a general rotation, which Orca has so far been checked to keep only for axis-aligned orientations. |
 | Layer preview (section 6.5) | Feasibility: G-code for a full plate can be large to fetch and draw in a narrow panel; WebGL is required. |
 | Slicing progress (section 6.6) | Feasibility: unknown whether headless Orca reports stages at all; without it, only an estimate is possible. |
 | Assembly import (section 6.3) | Feasibility: Onshape's assembly answers are unverified and cost counted calls to record; local mode cannot model assemblies yet. |
 | Error-path test campaign (section 6.10) | Resources: a long inventory across every step; Onshape failures, expiry and network loss are hard to produce in local mode and need replay cassettes or a way for the local adapter to fail on purpose; its findings will touch every step. Feasibility risk is low. |
 | Advanced mode (section 6.2) | Resources: Orca has hundreds of process settings; matching its completeness and keeping pace with Orca releases is large, steady work. Feasibility risk is low, since Orca reads the values from the process file. |
-| Cancellation and cleanup (section 6.7) | Feasibility: low; a known pattern, but it changes how Orca is run, shared with slicing progress. |
-| `-100` error debuggability (section 6.8) | Low once the cause is known; mostly better sentences and print event fields. |
+| Cancellation and cleanup (section 6.7) | Feasibility: low; a known pattern, but it changes how Orca is run, shared with slicing progress; until it exists, an abandoned slice holds the one Orca worker for up to 240 s. |
+| `-100` error debuggability (section 6.8) | Low: the cause is known (section 5); a wrong sentence to fix and Orca's reason to read and log before its file is deleted. |
 | Maintaining the test bed (section 6.1) | Resources: steady upkeep; each feature above needs local mode and replay coverage. |
 | Pushing and the pull request | Resources: a large diff (345 files) for the team to review. |
