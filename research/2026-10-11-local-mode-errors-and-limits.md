@@ -45,6 +45,11 @@ kept in scratch space; the part store copies had the same md5s).
 | L3 | Eiffel_tower_sample | 139,989 | 54.7 x 54.7 x 120.9 | **no**, 889 shells | 1 main shell (138,506 faces) + ~888 zero-thickness 4-face slivers; bed contact 564.8 mm² |
 | L4 | Stanford_Bunny_sample | 112,402 | 107.7 x 87.8 x 107.9 | yes | volume 279,628 mm³ |
 
+L1 to L4 are the four files the owner uploaded, one upload each. There was a single Eiffel tower
+file: a 35.3 MB ASCII STL, which local mode converted on upload to a 7.0 MB binary STL of 139,989
+triangles (an ASCII facet takes about 250 bytes, a binary one 50). "2 x L3" in the timeline below
+means two copies of that one part on the plate, not two meshes.
+
 ## Timeline (from `/tmp/metrics.db`, Pacific)
 
 | Time (Sun 10-11) | Page | Event |
