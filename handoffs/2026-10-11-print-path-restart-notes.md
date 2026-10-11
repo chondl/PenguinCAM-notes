@@ -20,7 +20,8 @@ Sun 10-11.
 - **The owner's feedback** asks for an advanced mode, assembly import, a 3D Layout step, a
   layer preview, better slicing progress, cancellation, and answers on two problems seen in
   local mode: the `-100` "no flat face on the plate" error and plate limits hit early with
-  organic shapes (section 6; the investigation is section 5).
+  organic shapes (section 6; the investigation is section 5). The owner also asked for an
+  error-path test campaign (section 6.10) and confirmed the 3D Layout step's design.
 - **First thing on restart:** read section 5 (the investigation of those two problems),
   start local mode (section 2) and reproduce them, then settle the open questions in
   section 6 with the owner before writing a design spec for the next work.
@@ -59,6 +60,7 @@ copy, plate, part store) hold here too.
 | **assembly import** | The proposed one-button import of an assembly's parts with their counts (section 6.3). |
 | **layer preview** | The proposed layer slider on the Preview step (section 6.5). |
 | **slicing progress** | What the browser shows while Orca slices (section 6.6). |
+| **error-path test campaign** | The planned pass over every error the print path can show, its sentence and its print event (section 6.10). |
 | **Orca's Prepare tab, Orca's Preview tab** | The two views of the Orca Slicer desktop app the owner points to as models. |
 | **print event** | One `[PRINT]` log line the server writes for a step a student takes. |
 
@@ -374,20 +376,31 @@ gate"; that is noted per item.
   a model and then put that face down"; "this is a lot more like the setup mode in Orca
   Slicer"; "drop many of the current controls on the bottom because they're pretty confusing.
   People aren't going to remember which faces are X, Y, and Z."
-- **Means (interpretation to confirm):** the Layout step shows the plate and copies in 3D
-  with orbit, pan and zoom, like Orca's Prepare tab. Movement stays constrained to the plate
-  plane: a copy is dragged across the plate, never lifted or tilted freely. Clicking a face
-  lays the copy down on that face. The axis-named **Lay flat** controls go. The 2D placement
-  rules (spacing, margin, height) and the server's checks stay.
-- **Open questions:** Confirm the interpretation above. "Any face on the bounding box" means
-  the six bounding box faces (what the six orientations already offer, picked visually) or
-  any face of the part itself (Orca's "lay on face", which allows tilted orientations and a
-  general rotation into Orca)? Does the rotate-by-angle control stay? Is a 3D view usable at
-  320 px, or does the Layout step widen as advanced mode does?
+- **Confirmed by the owner (Sun 10-11):** "You orbit, pan and zoom the camera, drag parts
+  across the plate, and click a face to lay it down, but nothing lifts off the plate." And:
+  "Basically should be similar to the orcaslicer UI in terms of capabilities."
+- **Decisions recorded:**
+  - The Layout step shows the plate and copies in 3D; the camera orbits, pans and zooms,
+    like Orca's Prepare tab.
+  - Movement stays in the plate plane: a copy is dragged across the plate and never lifted
+    or tilted by hand.
+  - Clicking any flat face of the part lays the copy down on that face, like Orca's Lay on
+    face. It is not limited to the six bounding box faces, so a copy can end up in an
+    orientation that is not axis-aligned.
+  - The axis-named **Lay flat** controls go. The placement rules (spacing, margin, height)
+    and the server's checks stay.
+  - The capabilities follow Orca's Prepare tab; Orca is the reference for what the Layout
+    step can do (section 6.11).
+- **Open questions:** Does the rotate-by-angle control stay, or does rotation about the
+  vertical axis become a drag handle as in Orca? Which other Prepare tab capabilities come
+  with "similar to the orcaslicer UI" (for example auto-orient, scale, cut)? Is a 3D view
+  usable at 320 px, or does the Layout step widen as advanced mode does?
 - **Dependencies:** the Preview step's three.js viewer (r128 with OrbitControls) already
-  draws copies in 3D and can be reused. A face that is not axis-aligned changes the
-  footprint model, which is mirrored in Python and JavaScript. Interacts with the `-100`
-  error (section 5).
+  draws copies in 3D and can be reused. Any-face lay down replaces the six-footprint model,
+  which is mirrored in Python and JavaScript, with a general rotation per copy; the server's
+  placement checks and the 3MF writer must carry that rotation, and Orca's keeping of a
+  general rotation under `--orient 0` is so far checked only for the six axis-aligned
+  orientations. Interacts with the `-100` error (section 5).
 
 ### 6.5 Layer preview
 
@@ -448,7 +461,8 @@ gate"; that is noted per item.
   and make the print events carry what a supporter needs to reproduce it (which copies, their
   orientations).
 - **Open questions:** settled by the investigation's findings.
-- **Dependencies:** section 5; the 3D Layout step (section 6.4) may remove the cause.
+- **Dependencies:** section 5; the 3D Layout step (section 6.4) may remove the cause; the
+  error-path test campaign (section 6.10) covers this error with every other.
 
 ### 6.9 Plate limits hit early
 
@@ -463,6 +477,65 @@ gate"; that is noted per item.
   allows (unchecked, milestone 3).
 - **Dependencies:** section 5; Railway memory (milestone 3); the build report's
   measurements (its section 6.3).
+
+### 6.10 Error-path test campaign
+
+- **Asked:** "One thing we'll need to do when we restart is do some real testing on errors:
+  both reportability in the user interface and how they are logged. Error-free operation is
+  really important. When there are errors, how we handle them and report them to the user in
+  an understandable way is really important in terms of the user's perception of a
+  high-quality product. This ends up being the difference between a product that is viewed
+  as simple and easy to use and one that's just a frustrating annoying tool that everyone
+  complains about."
+- **Means:** an error-path test campaign: a deliberate pass over every refusal and error the
+  print path can show, driven through local mode. The `-100` "no flat face on the plate"
+  error (sections 5 and 6.8) is the motivating example: the student saw one sentence that
+  did not help, and it is not yet known whether the print events were enough to diagnose
+  it. It serves the supportability goal of the
+  [print roadmap](../plans/2026-10-09-print-roadmap.md) (item 2, supportability on the
+  Onshape web side): support answers a question from the server log alone.
+- **The inventory**, one row per error, covering at least:
+  - every limit sentence in `print/limits.py` (triangles per part and per plate, copies,
+    distinct parts, bytes per page id, the part store, the slice timeout);
+  - every Orca return code the print path maps (`-101` overlap, `-52` crossing the edge,
+    `-100` no flat face, `-50` no part fully on the plate) and an unmapped one;
+  - the placement checks in the Layout step and on the server (too close, off the plate,
+    too tall, parked copies);
+  - Onshape failures: export refused or failed, standard content, an unreadable selection
+    answer, a configured Part Studio clicked without a configuration, a 402;
+  - expiry: a part store ref or a job record gone after an hour, a download token expired;
+  - network loss: the event stream dropping, the polling fallback, a request that never
+    answers;
+  - cancellation and a closed page (section 6.7);
+  - files: an empty, non-STL, inch-scaled, non-manifold or very dense STL.
+- **For each row:** how it is triggered; what the student sees; whether the sentence says
+  what to do next; and which `[PRINT]` line the server logs, and whether that line alone is
+  enough to diagnose it.
+- **How it runs:** in local mode, with a set of deliberately bad STL files kept as test
+  fixtures (no flat face, a sliver mesh, a part larger than the plate, a part too dense, a
+  broken file). Onshape failures that local mode cannot produce go through replay mode with
+  synthetic cassettes, or need a way for the local adapter to fail on purpose. Each row that
+  passes becomes a test, so the error paths stay checked.
+- **Open questions:** Does the owner want to review the sentences as a set before they are
+  rewritten? Is a sentence allowed to name a copy (`Bracket #2`) and say which way to turn
+  it? Should the student see the page id, so they can quote it to a mentor?
+- **Dependencies:** the investigation (section 5); cancellation (section 6.7) for its rows;
+  local mode (section 6.1), which may need a way to fail on purpose.
+
+### 6.11 References for the Orca-modelled work
+
+Advanced mode, the 3D Layout step and the layer preview (sections 6.2, 6.4, 6.5) are
+modelled on Orca. The references, most authoritative first:
+
+1. **The owner's screenshots and recordings of Orca on their own machine.** Asked for: the
+   advanced settings panel, Lay on face, and the Preview tab's layer slider.
+2. **The real Orca 2.4.2 GUI in the development container.** It runs as
+   `tools/orca/squashfs-root/bin/orca-slicer` under Xvfb, with `HOME` pointing at a
+   directory that has `.config/OrcaSlicer`. On first run it shows an SSL certificate
+   dialog; clicking through it needs `xdotool` or a similar tool, which is not installed.
+3. **Orca's public source**: the setting groups, labels, tooltips and which settings are
+   shown in simple versus advanced view.
+4. **Orca's online documentation.**
 
 ## 7. Still open from the milestone 1 build
 
@@ -502,10 +575,11 @@ Riskiest first. Risk here is risk in feasibility or in the resources the item ne
 |---|---|
 | Validation run (section 7.1) | Feasibility: every Onshape selector after sign-in's first field, the OAuth popup and every message shape are unverified; a bot check can stop the automated Onshape UI run. Resources: counted calls from a budget of 250, the owner's credentials and time. |
 | Plate limits (section 6.9) | Feasibility: Orca's memory and time grow fast with dense meshes (one sliver-faceted plate inside the limits peaked over 1 GB); the Railway plan's memory is unknown. The cause is not yet known (section 5). |
-| 3D Layout step (section 6.4) | Feasibility: 3D orbit, drag and face-pick in a panel of about 320 px; picking any face of the part (not only bounding box faces) breaks the six-footprint model mirrored in Python and JavaScript. |
+| 3D Layout step (section 6.4) | Feasibility: 3D orbit, drag and face-pick in a panel of about 320 px; the confirmed any-face lay down replaces the six-footprint model mirrored in Python and JavaScript with a general rotation, which Orca has so far been checked to keep only for axis-aligned orientations. |
 | Layer preview (section 6.5) | Feasibility: G-code for a full plate can be large to fetch and draw in a narrow panel; WebGL is required. |
 | Slicing progress (section 6.6) | Feasibility: unknown whether headless Orca reports stages at all; without it, only an estimate is possible. |
 | Assembly import (section 6.3) | Feasibility: Onshape's assembly answers are unverified and cost counted calls to record; local mode cannot model assemblies yet. |
+| Error-path test campaign (section 6.10) | Resources: a long inventory across every step; Onshape failures, expiry and network loss are hard to produce in local mode and need replay cassettes or a way for the local adapter to fail on purpose; its findings will touch every step. Feasibility risk is low. |
 | Advanced mode (section 6.2) | Resources: Orca has hundreds of process settings; matching its completeness and keeping pace with Orca releases is large, steady work. Feasibility risk is low, since Orca reads the values from the process file. |
 | Cancellation and cleanup (section 6.7) | Feasibility: low; a known pattern, but it changes how Orca is run, shared with slicing progress. |
 | `-100` error debuggability (section 6.8) | Low once the cause is known; mostly better sentences and print event fields. |
