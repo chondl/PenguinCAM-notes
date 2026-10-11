@@ -11,7 +11,7 @@ Sun 10-11.
 - **Milestone 1 of the [print roadmap](../plans/2026-10-09-print-roadmap.md) is built and
   reviewed, plus local mode.** The test bed, the print path's Onshape features (Parts,
   Layout, Setup, Preview steps, profiles, print events) and local mode are on the local
-  branch `feature/onshape-test-bed` in PenguinCAM: 58 commits, not pushed, no pull request.
+  branch `feature/onshape-test-bed` in PenguinCAM: 58 commits, pushed to `6238/PenguinCAM` on Sun 10-11, no pull request.
 - **Nothing has run against real Onshape yet.** Every undocumented Onshape behaviour waits
   on the validation run, which needs the owner's credentials (section 7).
 - **Local mode works end to end**: drop any STL file into a stand-in Part Studio, and the
