@@ -16,6 +16,7 @@ plan and test changes lives here, and nothing in PenguinCAM links to this reposi
 | `research/` | Background research |
 | `handoffs/` | Where-we-left-off notes for picking work back up |
 | `guides/` | How-tos specific to my machines, e.g. [testing the printer relay from a Mac](guides/PRINTER_DEV_TESTING.md), [running an Onshape checkpoint](guides/ONSHAPE_CHECKPOINT.md) |
+| `tools/` | Small standalone scripts. [helix_hole.py](tools/helix_hole.py) writes G-code for one round hole in wood, centered on XY0 with its bottom at Z0: `python3 tools/helix_hole.py --tool 4mm --hole 0.5in --height 2in > hole.nc`. Tests: `python3 -m unittest tools/test_helix_hole.py` |
 
 ## Current work: 3D printing
 
