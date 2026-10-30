@@ -74,7 +74,7 @@ class GeometryCase:
         self.moves = simulate(self.lines)
         self.cuts = [m for m in self.moves if m['g'] in ('1', '3')]
         self.finish_r = self.hole / 2 - self.tool / 2
-        self.helix_r = min(helix_hole.STEPOVER * self.tool, self.finish_r)
+        self.helix_r = min(helix_hole.HELIX_RADIUS_FRACTION * self.tool / 2, self.finish_r)
 
     def test_bottom_exactly_z0(self):
         zs = [m['end'][2] for m in self.moves]
@@ -98,6 +98,13 @@ class GeometryCase:
                 self.assertLessEqual(dz / (2 * math.pi * m['radius']),
                                      math.tan(math.radians(helix_hole.RAMP_ANGLE)) + 1e-4)
                 self.assertEqual(m['feed'], helix_hole.HELIX_FEED)
+
+    def test_helix_cuts_through_the_center(self):
+        # A helix wider than the end mill's radius leaves an uncut core in the middle.
+        helices = [m for m in self.cuts if m['g'] == '3' and m['start'][2] - m['end'][2] > 0]
+        self.assertTrue(helices)
+        for m in helices:
+            self.assertLess(m['radius'], self.tool / 2)
 
     def test_no_straight_plunge_into_stock(self):
         for m in self.cuts:
@@ -132,6 +139,14 @@ class ExpandedDeepHole(GeometryCase, unittest.TestCase):
                 self.assertEqual(m['feed'], helix_hole.SPIRAL_FEED)
 
 
+class HalfInchHoleSixMillimeterTool(GeometryCase, unittest.TestCase):
+    # Was a single helix with a 1.3 x radius helix, which left a core; now widened in layers.
+    tool, hole, height = 6 * MM, 0.5, 2.0
+
+    def test_needs_expansion(self):
+        self.assertGreater(self.finish_r, self.helix_r + EPS)
+
+
 class UnevenDepth(GeometryCase, unittest.TestCase):
     tool, hole, height = 6 * MM, 1.0, 1.3
 
@@ -142,8 +157,8 @@ class UnevenDepth(GeometryCase, unittest.TestCase):
 
 
 class NoExpansion(GeometryCase, unittest.TestCase):
-    # 12 mm hole, 6 mm end mill: finish radius 3 mm < 0.65 x 6 mm, so the helix is the hole.
-    tool, hole, height = 6 * MM, 12 * MM, 2.0
+    # 9 mm hole, 6 mm end mill: finish radius 1.5 mm < 0.75 x 3 mm, so the helix is the hole.
+    tool, hole, height = 6 * MM, 9 * MM, 2.0
 
     def test_single_helix_to_bottom(self):
         self.assertAlmostEqual(self.helix_r, self.finish_r)

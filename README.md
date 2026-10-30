@@ -16,7 +16,7 @@ plan and test changes lives here, and nothing in PenguinCAM links to this reposi
 | `research/` | Background research |
 | `handoffs/` | Where-we-left-off notes for picking work back up |
 | `guides/` | How-tos specific to my machines, e.g. [testing the printer relay from a Mac](guides/PRINTER_DEV_TESTING.md), [running an Onshape checkpoint](guides/ONSHAPE_CHECKPOINT.md) |
-| `tools/` | Small standalone scripts. [helix_hole.py](tools/helix_hole.py) writes G-code for one round hole in wood, centered on XY0 with its bottom at Z0: `python3 tools/helix_hole.py --tool 4mm --hole 0.5in --height 2in > hole.nc`. Tests: `python3 -m unittest tools/test_helix_hole.py` |
+| `tools/` | Small standalone scripts. [helix_hole.py](tools/helix_hole.py) writes G-code for one round hole in wood, centered on XY0 with its bottom at Z0: `python3 tools/helix_hole.py --tool 4mm --hole 0.5in --height 2in > hole.nc`. Tests: `python3 -m unittest tools/test_helix_hole.py`. [simulate_helix_hole.py](tools/simulate_helix_hole.py) runs a set of examples through PenguinCAM's `gcode_sim.py` beside PenguinCAM's own hole toolpath. It found that PenguinCAM's hole entry helix (radius 1.3 x the end mill radius) leaves an uncut core in every hole wider than 2 x the end mill diameter, and that `gcode_sim.py` simulates a program's first `G0 Z` at XY0 as a plunge from Z0 |
 
 ## Current work: 3D printing
 

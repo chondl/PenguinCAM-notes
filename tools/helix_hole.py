@@ -10,8 +10,10 @@ Every length needs a unit: mm or in (or "). The program is written in inches (G2
 
 Strategy (taken from PenguinCAM's helical + spiral hole, frc_cam_postprocessor.py, with
 its plywood preset from team_config.py):
-  * Helix down at 20 degrees on a radius of one stepover (65% of the end mill diameter),
-    or the finishing radius if that is smaller.
+  * Helix down at 20 degrees on a radius of 0.75 x the end mill radius (PenguinCAM's
+    pocket entry, helix_radius_multiplier), or the finishing radius if that is smaller.
+    A helix no wider than the end mill's radius cuts through the center; PenguinCAM's
+    hole entry uses one stepover (1.3 x the radius), which leaves an uncut core.
   * If the helix alone makes the hole, it goes straight to Z0 in one helix.
   * Otherwise the hole is cut in layers 1/2" deep from the top (the last layer takes the
     remainder down to Z0): helix down to the layer floor, spiral out to the finishing
@@ -33,6 +35,7 @@ RAMP_ANGLE = 20.0           # degrees
 RAMP_START_CLEARANCE = 0.15  # inches above the stock top where the helix starts
 CLEARANCE = 0.5             # inches above the stock top for rapid moves
 STEPOVER = 0.65             # radial stepover as a fraction of the end mill diameter
+HELIX_RADIUS_FRACTION = 0.75  # helix radius as a fraction of the end mill radius
 MIN_HOLE_MULTIPLIER = 1.2   # smallest hole the helix can make, x end mill diameter
 LAYER_DEPTH = 0.5           # inches per layer when the hole has to be widened
 
@@ -109,7 +112,7 @@ def generate(tool, hole, height):
 
     stepover = STEPOVER * tool
     finish_r = hole / 2 - tool / 2
-    helix_r = min(stepover, finish_r)
+    helix_r = min(HELIX_RADIUS_FRACTION * tool / 2, finish_r)
     expand = finish_r > helix_r + EPS
     safe_z = height + CLEARANCE
     ramp_start = height + RAMP_START_CLEARANCE
