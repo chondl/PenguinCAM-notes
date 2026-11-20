@@ -237,3 +237,17 @@ the coordinator saves the substance to `results/<component>-port.md`.
 - Thu 11-19 20:23 PT: delivery hardening review round 2 dispatched (Fable), result
   `results/delivery-hardening-review-2.md`. Asked to probe the overshoot: jobs that can
   now never end.
+- Thu 11-19 20:35 PT: slice hardening review 2 returned: FIX, 6 defects
+  ([results/slice-hardening-review-2.md](results/slice-hardening-review-2.md)). Held with
+  real Orca: watchdog stop, cancel, timeout, outside kill and crash each give their own
+  truthful report with nothing left behind. 40 of 40 runs, 729 tests, 4.3 s on 2 workers,
+  100% branch coverage. Real defects: the watchdog samples every 0.25 s and misses
+  Orca's peak, a spike under 0.1 s (same plate delivered four times and refused twice);
+  a plate job refused on arrival leaves no log line; the watchdog's tests can hang; a
+  stop that lands just after Orca finished discards a finished sliced file (rare).
+- Ruling: a finished sliced file is never discarded; success wins every race against a
+  stop. The watchdog reads the kernel's high-water mark so a spike is seen at the next
+  sample; a slice that finishes before it is stopped is delivered, with its measured peak
+  logged and noted as over the ceiling.
+- Thu 11-19 20:35 PT: slice hardening fix 2 dispatched (Opus), result
+  `results/slice-hardening-fix-2.md`.
