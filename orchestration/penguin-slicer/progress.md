@@ -118,3 +118,12 @@ the coordinator saves the substance to `results/<component>-port.md`.
   with a folder as the sliced file's path; the Orca version stated in six files.
 - Thu 11-19 18:54 PT: slice port fix 1 dispatched (Opus), result
   `results/slice-port-fix-1.md`.
+- **Correction, Thu 11-19 18:22 PT (read from the clock):** the times in the log entries
+  above from "18:00" to "18:54" were estimated without reading the clock and run up to
+  about 30 minutes ahead; their order is right. Every time from here on is read from the
+  clock.
+- Thu 11-19 18:21 PT: delivery port fix 1 returned: all 12 defects reported fixed, no
+  `known_fault` pins needed, 538 tests, 20 of 20 runs
+  ([results/delivery-port-fix-1.md](results/delivery-port-fix-1.md)); unverified.
+- Thu 11-19 18:22 PT: delivery port review round 2 dispatched (Fable), result
+  `results/delivery-port-review-2.md`.

@@ -1,6 +1,6 @@
 # Upstream code: a requirement on both components
 
-Added Thu 2026-11-19 18:00 PT at the owner's request. It is part of the port and of the
+Added Thu 2026-11-19 at the owner's request. It is part of the port and of the
 hardening of both components, and reviews check it.
 
 Both components rest on open-source code written by others: the slice service on **Orca

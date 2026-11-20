@@ -82,7 +82,7 @@ answered wrongly at any moment.
    deterministic; the fast suite uses injected transports with no sockets.
 
 9. **The daemon is a plain Python program that runs anywhere Python does.** Set by the
-   owner Thu 11-19 18:30 PT. The first real use is testing, most likely on a Windows
+   owner Thu 11-19. The first real use is testing, most likely on a Windows
    computer that sits on the printer's network and is always on. For this version:
    - it presupposes Python and is started by hand as a Python program (`python -m ...` or
      `uv run ...`), on Windows, macOS or Linux, with the same commands on each;
