@@ -60,7 +60,10 @@ change in the same piece of work.
    reference plates proposed in the research and the restart notes' section 6.9 as far as
    the machine allows (one Orca at a time; stop measuring a plate that passes 3 GB).
    Report the measurements in the result file.
-8. **A small HTTP face** for the service, so a client can submit a plate job, follow its
+8. **Upstream.** Everything in [upstream.md](upstream.md), for Orca Slicer and its
+   profiles. The port copied Orca from an installed tree; here the installer's real
+   download path is run once and verified.
+9. **A small HTTP face** for the service, so a client can submit a plate job, follow its
    progress reports as a stream, cancel it and fetch the sliced file: a Flask app factory
    inside `slice/`, tested with Flask's test client. Its error answers are error reports.
 

@@ -67,7 +67,9 @@ answered wrongly at any moment.
    not tell whether status was still being asked for). The daemon's own log says plainly
    what it is doing and what it is waiting for, and nothing in it looks like an error
    unless something failed. No pairing code, access code or token in any log.
-7. **The simulated printer.** A program in `delivery/` that plays a Bambu H2S to the
+7. **Upstream.** Everything in [upstream.md](upstream.md), for the printer library. The
+   simulated printer's suite doubles as the upstream check for it.
+8. **The simulated printer.** A program in `delivery/` that plays a Bambu H2S to the
    daemon over real loopback sockets, speaking as much of the printer's MQTT status and
    FTPS upload as the daemon uses, scripted by scenario files: a whole print from start to
    finish, and each failure below. Only one real status document was recorded (its fields

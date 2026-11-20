@@ -23,10 +23,11 @@ far.
   2. port printer delivery from the print branch and harden it;
   3. finish a mockup of the wizard for the owner to try (a first draft is being built as
      this is written; section 8 has its status).
-- **Hardening means the same five things for both services, plus a short list of changes
-  particular to each (sections 6.2 and 7.2). The five:** errors that say what
+- **Hardening means the same six things for both services, plus a short list of changes
+  particular to each (sections 6.2 and 7.2). The six:** errors that say what
   happened and what to do, real progress, cancellation, cleanup when a client goes
-  away, and logs complete enough to support a team from the server alone.
+  away, logs complete enough to support a team from the server alone, and a routine way
+  to take new versions of the open-source code each service rests on.
 - **The wizard is the big unknown.** Its requirements come from the owner's reactions to
   the mockup. Nothing of the wizard is built before that.
 - **Planning stops there on purpose.** When the two services are solid and the owner has
@@ -185,6 +186,22 @@ unknown state.
 
 Every transition of a job writes one log line with enough in it to diagnose a failure
 without asking the team for anything. No secret appears in a log.
+
+### 5.6 Upstream code
+
+Both services rest on open-source code written by others: the slice service on Orca and
+its profiles, the daemon on a library that speaks the printer's protocol. Two rules,
+added by the owner on Thu 11-19:
+
+- **Taking a new version is routine.** Each one's version is pinned in one place, one
+  command moves the pin and regenerates what is derived from it, and a named suite of
+  tests pins down every behaviour of that code the service relies on, so a new version
+  that breaks an assumption fails a test that says which.
+- **Small patches are allowed** where that code reports an error or progress too poorly
+  to meet sections 5.1 and 5.2, never for a new feature. A patch is kept as a file
+  against a named version, with a note saying what gap it closes, and the upgrade command
+  applies it. Patching Orca means building it from source, so each such patch is the
+  owner's decision.
 
 ## 6. Work 1: the slice service
 

@@ -69,3 +69,15 @@ the coordinator saves the substance to `results/<component>-port.md`.
   `mockups/print-wizard/DECISIONS.md`.
 - Thu 11-19 17:52 PT: mockup Fable round 1 dispatched.
 - Thu 11-19 18:10 PT: briefs and this ledger written.
+- Thu 11-19 18:00 PT: owner added the upstream requirement (routine upgrades of Orca
+  Slicer and the printer library; small patches allowed for error and progress
+  reporting). Written as [briefs/upstream.md](briefs/upstream.md), added to the review
+  and hardening briefs and to the plan as section 5.6. Sent to the running delivery port
+  agent as a small addition.
+- Ruling: a patch to Orca itself needs a source build, so each one is the owner's
+  decision; agents write the patch note and work around the gap.
+- Thu 11-19 18:01 PT: slice service port returned; its claims are in
+  [results/slice-port.md](results/slice-port.md) (420 fast tests in 0.85 s, 100% branch
+  coverage, 8 real-Orca tests in 1.3 s; all unverified).
+- Thu 11-19 18:08 PT: slice port review round 1 dispatched (Fable), result
+  `results/slice-port-review-1.md`.

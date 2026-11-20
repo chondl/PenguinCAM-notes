@@ -40,27 +40,33 @@ files and scripts under your own folder in
    report conforming to `contracts/error-report.md`, is its sentence true and useful, can
    its remedy actually help, is the detail kept, is there a test that produces it on
    purpose? List any failure that can escape as a bare exception or a traceback.
-5. **Separation.** Nothing imports from outside the component except the standard
+5. **Upstream.** Every point of [upstream.md](upstream.md) section 1 that the phase
+   could reach: one pin, the upgrade command, the upstream check suite and what it leaves
+   unprotected, the single seam, the guide section. In the port phase a missing piece is
+   a defect only if the code makes it harder later (a version stated in two places, calls
+   to upstream scattered outside one module); in the hardening phase every missing piece
+   is a defect.
+6. **Separation.** Nothing imports from outside the component except the standard
    library and declared dependencies. The contracts' example files are checked by tests.
    The guide lets a newcomer run the component alone.
 
 ## Extra checks, port phase
 
-6. **Faithful.** Compare with the print branch: is any behaviour silently changed, any
+7. **Faithful.** Compare with the print branch: is any behaviour silently changed, any
    test dropped without a replacement, any module left behind that the component needs?
 
 ## Extra checks, hardening phase
 
-7. **Each hostile case in the hardening brief** has a test, and the test would fail if the
+8. **Each hostile case in the hardening brief** has a test, and the test would fail if the
    handling were removed. Add your own hostile cases the brief did not think of: write
    them as scratch tests, run them against the component, and report every one that
    produces a traceback, a hang, a leaked process or file, a wrong sentence, or an
    invented progress figure.
-8. **Cancellation and cleanup are real.** After a cancel, a timeout, a crash and a
+9. **Cancellation and cleanup are real.** After a cancel, a timeout, a crash and a
    vanished client: no child process left, no file left, the slot is free, and the same
    job can be run again. Verify by looking at the process table and the file system in
    a test, not by reading the code.
-9. **Progress is honest.** No fraction is reported that the component cannot know; late
+10. **Progress is honest.** No fraction is reported that the component cannot know; late
    subscribers get the latest report; nothing is sent after a final state; `cancelled`
    comes only after the work has stopped.
 
