@@ -278,3 +278,14 @@ the coordinator saves the substance to `results/<component>-port.md`.
   busy. Fast suite 20 of 20 in 3 to 4 s; simulator suite 26 tests; upstream check 44.
 - Thu 11-19 21:07 PT: delivery hardening review round 3 dispatched (Fable), result
   `results/delivery-hardening-review-3.md`.
+- Thu 11-19 21:07 PT: slice hardening fix 2 returned: all 6 defects reported fixed
+  ([results/slice-hardening-fix-2.md](results/slice-hardening-fix-2.md)); unverified. The
+  watchdog reads the kernel's high-water mark (six real-Orca runs at a ceiling 5% under
+  the peak all stopped, each reading the true peak); the end of a run is decided in one
+  place (`slicer.settle`); every refused plate job logs a line; every test wait bounded;
+  one more hang found and fixed (an interrupt during a slice). 781 fast tests, 20 of 20
+  runs, 100% branch coverage; real-Orca suite 28 of 28 in 12.8 s.
+- Ruling: a cancel asked for by the caller still discards a file Orca happened to finish;
+  "success wins" covers only stops the service decides on.
+- Thu 11-19 21:07 PT: slice hardening review round 3 dispatched (Fable), result
+  `results/slice-hardening-review-3.md`.
