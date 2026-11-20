@@ -216,3 +216,13 @@ the coordinator saves the substance to `results/<component>-port.md`.
   the library's `unwrap` option fixes it).
 - Thu 11-19 19:50 PT: delivery hardening fix 1 dispatched (Opus), result
   `results/delivery-hardening-fix-1.md`.
+- Thu 11-19 20:13 PT: slice hardening fix 1 returned: all 14 defects reported fixed
+  ([results/slice-hardening-fix-1.md](results/slice-hardening-fix-1.md)); unverified. 729
+  fast tests, 100 of 100 runs, 3.8 s on 2 workers; 27 real-Orca tests in 10.4 s. Memory
+  watchdog in, `slice.plate_too_large` gone, estimate only logged (no warning: it would
+  fire falsely on most solid parts). Two more process-exit races found and fixed. Upgrade
+  proof run 2.4.2 to 2.4.1 and back worked; the upstream check failed on 2.4.1 as
+  designed. For the owner: the upgrade command stops when a patch file exists instead of
+  applying it, since an Orca patch needs a source build.
+- Thu 11-19 20:13 PT: slice hardening review round 2 dispatched (Fable), result
+  `results/slice-hardening-review-2.md`.
