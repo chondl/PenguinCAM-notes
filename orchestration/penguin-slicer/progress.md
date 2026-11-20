@@ -140,3 +140,12 @@ the coordinator saves the substance to `results/<component>-port.md`.
   pinned as `known_fault`; 445 tests, 20 of 20 runs; Orca version now stated in one place
   ([results/slice-port-fix-1.md](results/slice-port-fix-1.md)); unverified. Slice port
   review round 2 dispatched (Fable), result `results/slice-port-review-2.md`.
+- Thu 11-19 18:31 PT: delivery port review 2 returned: FIX, 1 defect (a test that reads every file
+  under `delivery/daemon/` as UTF-8 fails on a stray `.DS_Store`). All 12 earlier
+  defects confirmed fixed at their cause; 23 of 23 hand mutations caught; 538 tests, 20
+  of 20 runs; concurrency probes clean
+  ([results/delivery-port-review-2.md](results/delivery-port-review-2.md)).
+- Ruling: one test-only defect does not earn its own fix and review round; it is the
+  first item of the hardening dispatch. The delivery port is committed as `7e1e2e1`.
+  **Delivery port phase closed after 2 review rounds.**
+- Thu 11-19 18:31 PT: delivery hardening dispatched (Opus), result `results/delivery-hardening.md`.
