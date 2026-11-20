@@ -282,6 +282,11 @@ print from start to finish, and of a failed or stopped print if one can be had. 
 them takes one session at the H2S with the daemon as it is. Until then the simulated
 printer can be built against that one document and invented sequences, which is weaker.
 
+Hardening also makes the daemon run on Windows. The owner has a Windows computer on the
+printer's network that is always on, and the first real deployment for testing will
+likely be there. The Raspberry Pi stays supported. No Windows machine is available to the
+build, so this part ends with a checklist for the owner to confirm on that computer.
+
 One confirmation on the real H2S closes this work, after everything passes against the
 simulated printer.
 

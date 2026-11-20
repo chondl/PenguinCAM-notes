@@ -88,3 +88,6 @@ the coordinator saves the substance to `results/<component>-port.md`.
   `results/delivery-port-review-1.md`.
 - Thu 11-19 18:20 PT: owner moved the mockup deadline to 23:30 PT (guard cron now fires
   about 23:00 PT) and decided the daemon stays in Python for now.
+- Thu 11-19 18:25 PT: owner said the daemon will likely be deployed for testing on a
+  Windows computer on the printer's network, up all the time. Added as requirement 9 of
+  the delivery hardening brief; the Raspberry Pi stays supported.

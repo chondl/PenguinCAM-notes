@@ -81,6 +81,27 @@ answered wrongly at any moment.
    The simulated printer runs in its own small suite (`make test-sim`), kept fast and
    deterministic; the fast suite uses injected transports with no sockets.
 
+9. **The daemon runs on Windows.** Added by the owner Thu 11-19 18:25 PT: the first real
+   deployment for testing will be a Windows computer that sits on the printer's network
+   and is always on. The Raspberry Pi stays supported. So:
+   - nothing Unix-only at import or on any path the daemon takes on Windows (the port
+     imports `pwd` in its entry point; look for `os.geteuid`, `fcntl`, signals Windows
+     lacks, `/etc` and `/var/tmp` paths, file modes, `os.rename` over an existing file,
+     file locking, and names Windows forbids in the files it downloads);
+   - configuration, state and downloads live in the platform's proper per-machine places,
+     chosen in one module;
+   - a Windows install and run path in the guide: how to install with `uv` or plain
+     Python, how to pair, how to keep it running across reboots (a scheduled task at
+     start-up, or a service; pick the simplest that survives a reboot and say how to see
+     its log), and how to run the recording command there;
+   - the secrets the daemon keeps (its token, the printer's access code) are readable only
+     by the account that runs it, on both platforms; say how that is done on Windows;
+   - no Windows machine is available here, so prove what can be proven: the fast suite
+     runs every platform-dependent choice with the platform injected (both branches
+     tested on Linux), a test imports the whole daemon with the Unix-only modules made
+     unimportable, and the result file ends with a short checklist of what the owner must
+     confirm on the real Windows machine.
+
 ## Hostile cases: each needs a test that fails if the handling is removed
 
 Build a fault-injecting transport for both links and drive it with a fake clock, so each
