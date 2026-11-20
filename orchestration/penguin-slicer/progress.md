@@ -387,3 +387,27 @@ caller's cancel; `delivery.outcome_unknown` after stop-following or 24 hours of
 staleness; a printer whose last print ended is free; a start command only on a report
 younger than 15 s; Orca patches are the owner's decision and the upgrade command stops
 at one.
+
+## Second run, started Thu 11-19 23:23 PT
+
+The owner, before going to bed: two more printer delivery rounds "to see if we can get to
+low issues only"; do not change the global instructions; first mockup reactions (advanced
+mode as a bigger surface than the 320 px panel; an automatic layout that also turns parts,
+client-side, only if it can be done simply; no mode switch between arranging and laying a
+part on a face; learn from Orca Slicer's layout and preview views); and for the morning
+**one Markdown file** describing everything done in this session and everything open.
+
+| Strand | Chain | State |
+|---|---|---|
+| Printer delivery, rounds 5 and 6 | Opus fix 4, Fable review 5, Opus fix 5, Fable review 6, commit | Fix 4 running |
+| Wizard research | Opus research ([brief](briefs/wizard-research.md)), result in `research/2026-11-19-wizard-layout-and-advanced-mode-research.md` | Running |
+| Mockup round 3 | After the research: Opus changes, one Fable round, commit | Waiting on the research |
+| Session summary | One file for the owner, reviewed, opened | After the others |
+
+- Rulings for delivery fix 4: "the printer is free" needs a whole, fresh report that says
+  so; an end counts only as an end of this print; the wait for a fresh report sits before
+  the start gate and a cancel works until the start command is sent; after a start
+  command the printer is held until evidence settles it, and a slow printer gives a
+  non-final stage, not a failure at 60 seconds.
+- Thu 11-19 23:23 PT: delivery hardening fix 4 and the wizard research dispatched (both Opus). Status
+  cron `860432fc`.
