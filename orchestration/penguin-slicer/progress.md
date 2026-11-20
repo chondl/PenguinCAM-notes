@@ -35,8 +35,10 @@ the coordinator saves the substance to `results/<component>-port.md`.
 ## Rules for the coordinator
 
 - Review and fix rounds continue for as long as a review finds real defects (something
-  that can mislead a user, lose work, hang, leak, flake or hide a failure), with no fixed
-  number of rounds. A phase is done when a fresh review passes, or finds only items that
+  that can mislead a user, lose work, hang, leak, flake or hide a failure), up to a cap of
+  four review rounds per phase per component (owner, Thu 11-19 18:28 PT). Defects still open
+  after the fourth review go into the report to the owner, and that phase is committed
+  as it stands with them listed. A phase is done when a fresh review passes, or finds only items that
   are not real defects; then it is committed and the chain moves on. When both components
   are hardened and pass, the run is done and stops; it does not need to fill the night.
   (Owner, Thu 11-19 18:27 PT; replaces the earlier cap of three rounds.)
