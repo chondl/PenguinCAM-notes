@@ -136,3 +136,7 @@ the coordinator saves the substance to `results/<component>-port.md`.
   judged not worth it. Coordinator loaded it through the viewer: renders, no console
   errors. Committed and opened for the owner. Mockup strand closed until the owner's
   feedback; guard cron deleted.
+- Thu 11-19 18:30 PT: slice port fix 1 returned: 13 of 14 defects reported fixed, the -100 sentence
+  pinned as `known_fault`; 445 tests, 20 of 20 runs; Orca version now stated in one place
+  ([results/slice-port-fix-1.md](results/slice-port-fix-1.md)); unverified. Slice port
+  review round 2 dispatched (Fable), result `results/slice-port-review-2.md`.
