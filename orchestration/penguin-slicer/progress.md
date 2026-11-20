@@ -430,3 +430,11 @@ part on a face; learn from Orca Slicer's layout and preview views); and for the 
 - Thu 11-19 23:36 PT: mockup round 3 dispatched (Opus): the recommended scheme as default, with the
   other lay-on-face options and mouse schemes selectable from the scenario strip so the
   owner can compare them.
+- Fri 11-20 00:11 PT: mockup round 3 returned (Opus): the Layout step has no modes; parts arrive lying
+  their best way (the rib flat, 8 mm tall) with "Put back as modelled"; Arrange keeps the
+  better of two packers; advanced mode is a full-height view in the panel that widens at
+  480 and 700 px; the scenario strip has selectors for "Lay on face" (resting-position
+  strip, face markers, box tumbler, tip handle) and "Mouse" (three schemes). Left out:
+  the rotation ball. Least sure: Arrange does not choose how copies lie; the "needs
+  supports" threshold is invented; the red problem bar can cover the rotation handle.
+- Fri 11-20 00:11 PT: Fable round on mockup round 3 dispatched.
