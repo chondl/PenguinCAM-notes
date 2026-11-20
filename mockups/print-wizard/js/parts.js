@@ -1,6 +1,7 @@
 /* Penguin Slicer mockup: the mock document's parts, generated as three.js geometry in
  * millimetres (Z up, as Onshape exports). No STL files. Each part is built once, centred on
- * its bounding box, and analysed for flat faces (for Lay on face), volume and size. */
+ * its bounding box, and analysed for flat faces (to lay a copy on), volume, size and the
+ * resting positions it can be given automatically (auto-orient). */
 (function () {
   'use strict';
   var T = THREE;
@@ -144,7 +145,7 @@
   }
 
   /* ------------------------------------------------------------ analysis */
-  // Group triangles into planar faces; a face is "flat" for Lay on face when it is on the
+  // Group triangles into planar faces; a face is "flat" (a copy can be laid on it) when it is on the
   // part's convex hull (nothing sticks out past it) and has a usable area.
   function analyse(g) {
     var p = g.attributes.position.array, nTri = p.length / 9;
@@ -169,6 +170,19 @@
       for (var i = 0; i < nv; i++) { var dd = f.n.x * p[i * 3] + f.n.y * p[i * 3 + 1] + f.n.z * p[i * 3 + 2]; if (dd > max) max = dd; }
       f.onHull = max <= f.d + 0.05;
       f.flat = f.onHull && f.area >= 25;
+      // a point on the face to put a marker on: the triangle centre nearest the face's middle
+      var cents = f.tris.map(function (t) { return new T.Vector3((p[t * 9] + p[t * 9 + 3] + p[t * 9 + 6]) / 3, (p[t * 9 + 1] + p[t * 9 + 4] + p[t * 9 + 7]) / 3, (p[t * 9 + 2] + p[t * 9 + 5] + p[t * 9 + 8]) / 3); });
+      var mean = new T.Vector3(); cents.forEach(function (v) { mean.add(v); }); mean.divideScalar(Math.max(1, cents.length));
+      f.centre = cents.reduce(function (a, v) { return v.distanceTo(mean) < a.distanceTo(mean) ? v : a; }, cents[0] || mean);
+    });
+    // The mock parts are merged solids, so where two pieces touch (a pulley's flange on its
+    // toothed body) a face lies on another facing the other way. Such faces are inside the
+    // part; they must not count as overhang.
+    faces.forEach(function (f) {
+      for (var i = 0; i < faces.length && !f.internal; i++) {
+        var g = faces[i];
+        if (g !== f && g.n.dot(f.n) < -0.9995 && Math.abs(g.d + f.d) < 0.05) f.internal = g.internal = true;
+      }
     });
     return { faces: faces, triFace: triFace, volume: Math.abs(volume), triangles: nTri };
   }
@@ -194,6 +208,108 @@
     byKey[def.key] = def;
   });
 
+  /* ------------------------------------------------------------ resting positions */
+  // Every way a part can lie on the plate, best first (research 2026-11-19, section B, our own
+  // small score, not Orca's code). Candidates: the part's flat outside faces (the same faces a
+  // double-click lays it on) and the orientation as modelled. A candidate counts only when
+  // the part's centre of mass is above what touches the plate (it would not tip over) and at
+  // least 25 mm² touches. Cost, lower is better:
+  //   (overhang + 1) / (contact + 1) + height / 100, plus 100 when contact is under 25 mm²,
+  // where contact is the area within 0.1 mm of the plate and overhang the area facing down
+  // more than 45 degrees from vertical. Worked out in the browser the first time a part is used.
+  var DOWN = new T.Vector3(0, 0, -1);
+  var SUPPORT_AREA = 400;          // invented: more overhang than this reads "needs supports"
+  function hull2(pts) {
+    var q = pts.slice().sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+    if (q.length < 3) return q;
+    function cr(o, a, b) { return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]); }
+    var lo = [], up = [], i;
+    for (i = 0; i < q.length; i++) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q[i]) <= 0) lo.pop(); lo.push(q[i]); }
+    for (i = q.length - 1; i >= 0; i--) { while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q[i]) <= 0) up.pop(); up.push(q[i]); }
+    up.pop(); lo.pop(); return lo.concat(up);
+  }
+  function inside2(pt, poly) {
+    var c = false;
+    for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      var a = poly[i], b = poly[j];
+      if ((a[1] > pt[1]) !== (b[1] > pt[1]) && pt[0] < (b[0] - a[0]) * (pt[1] - a[1]) / (b[1] - a[1]) + a[0]) c = !c;
+    }
+    return c;
+  }
+  function resting(key) {
+    var def = byKey[key];
+    if (def.rest) return def.rest;
+    var t0 = performance.now();
+    var p = def.geometry.attributes.position.array, nTri = p.length / 9, nv = p.length / 3;
+    var tn = new Float32Array(nTri * 3), ta = new Float32Array(nTri), com = new T.Vector3(), vol = 0;
+    for (var t = 0; t < nTri; t++) {
+      var o = t * 9, ax = p[o], ay = p[o + 1], az = p[o + 2], bx = p[o + 3], by = p[o + 4], bz = p[o + 5], cx = p[o + 6], cy = p[o + 7], cz = p[o + 8];
+      var e1x = bx - ax, e1y = by - ay, e1z = bz - az, e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+      var nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x, L = Math.sqrt(nx * nx + ny * ny + nz * nz);
+      ta[t] = L / 2;
+      if (L > 0) { tn[t * 3] = nx / L; tn[t * 3 + 1] = ny / L; tn[t * 3 + 2] = nz / L; }
+      var v = (ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)) / 6;
+      vol += v; com.x += v * (ax + bx + cx) / 4; com.y += v * (ay + by + cy) / 4; com.z += v * (az + bz + cz) / 4;
+    }
+    com.divideScalar(vol || 1);
+    function score(d, face) {
+      var u = (Math.abs(d.z) < 0.9 ? new T.Vector3(0, 0, 1) : new T.Vector3(1, 0, 0)).cross(d).normalize();
+      var w = new T.Vector3().crossVectors(d, u);
+      var minZ = Infinity, maxZ = -Infinity, i, z;
+      for (i = 0; i < nv; i++) { z = -(p[i * 3] * d.x + p[i * 3 + 1] * d.y + p[i * 3 + 2] * d.z); if (z < minZ) minZ = z; if (z > maxZ) maxZ = z; }
+      var contact = 0, overhang = 0, pts = [];
+      for (var k = 0; k < nTri; k++) {
+        var oo = k * 9, zmax = -Infinity;
+        for (var j = 0; j < 9; j += 3) { z = -(p[oo + j] * d.x + p[oo + j + 1] * d.y + p[oo + j + 2] * d.z); if (z > zmax) zmax = z; }
+        if (zmax < minZ + 0.1) {
+          contact += ta[k];
+          for (var jj = 0; jj < 9; jj += 3) pts.push([p[oo + jj] * u.x + p[oo + jj + 1] * u.y + p[oo + jj + 2] * u.z, p[oo + jj] * w.x + p[oo + jj + 1] * w.y + p[oo + jj + 2] * w.z]);
+          continue;
+        }
+        var fk = def.triFace[k];
+        if (fk >= 0 && def.faces[fk].internal) continue;
+        if (tn[k * 3] * d.x + tn[k * 3 + 1] * d.y + tn[k * 3 + 2] * d.z > Math.SQRT1_2) overhang += ta[k];
+      }
+      var h = hull2(pts), stable = h.length >= 3 && inside2([com.dot(u), com.dot(w)], h), height = maxZ - minZ;
+      return { n: d.clone(), face: face, q: new T.Quaternion().setFromUnitVectors(d, DOWN), contact: contact, overhang: overhang,
+               height: height, stable: stable, supports: overhang > SUPPORT_AREA,
+               cost: (overhang + 1) / (contact + 1) + height / 100 + (contact < 25 ? 100 : 0) };
+    }
+    var dirs = [];
+    def.faces.forEach(function (f, fi) {
+      if (!f.flat) return;
+      for (var i = 0; i < dirs.length; i++) if (dirs[i].n.dot(f.n) > 0.9995) { if (f.area > def.faces[dirs[i].face].area) dirs[i].face = fi; return; }
+      dirs.push({ n: f.n, face: fi });
+    });
+    var list = dirs.map(function (x) { return score(x.n, x.face); }).filter(function (r) { return r.stable && r.contact >= 25; });
+    var modelled = score(DOWN, -1); modelled.modelled = true; modelled.q = new T.Quaternion();
+    list.forEach(function (r) { if (r.n.dot(DOWN) > 0.9995) { r.modelled = true; r.q = new T.Quaternion(); } });
+    list.sort(function (a, b) { return a.cost - b.cost || (b.modelled ? 1 : 0) - (a.modelled ? 1 : 0); });
+    // Positions that score the same in every way are the same choice for printing (the six
+    // flats of a hex shaft, the two sides of a rib): keep one, remember the others as twins.
+    var kept = [];
+    list.forEach(function (r) {
+      var twin = kept.filter(function (k) {
+        return Math.abs(k.height - r.height) < 0.2 && Math.abs(k.contact - r.contact) < Math.max(1, k.contact * 0.01) && Math.abs(k.overhang - r.overhang) < Math.max(1, k.overhang * 0.01);
+      })[0];
+      if (twin) { twin.twins.push(r.n); if (r.modelled) { twin.modelledTwin = true; } } else { r.twins = []; kept.push(r); }
+    });
+    list = kept.slice(0, 6);
+    def.rest = { list: list, modelled: modelled, modelledListed: list.some(function (r) { return r.modelled || r.modelledTwin; }), ms: performance.now() - t0 };
+    return def.rest;
+  }
+  // Which resting position a copy is in now (index in the list, a twin counting as its
+  // position), -1 for none of them.
+  function restIndex(key, q) {
+    var local = DOWN.clone().applyQuaternion(q.clone().invert()), list = resting(key).list;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].n.dot(local) > 0.999) return i;
+      if (list[i].twins.some(function (n) { return n.dot(local) > 0.999; })) return i;
+    }
+    return -1;
+  }
+  function isModelled(q) { return DOWN.clone().applyQuaternion(q.clone().invert()).dot(DOWN) > 0.999; }
+
   // The documents the mock Onshape tab can show.
   var PART_STUDIO = { name: 'Intake v3', tab: 'Part Studio 1', parts: ['bracket', 'pulley', 'camera', 'spacer', 'gusset', 'rib', 'shaft'] };
   var ASSEMBLY = {
@@ -205,5 +321,6 @@
     standardContent: [{ name: 'Socket Head Cap Screw #10-32 x 0.5', count: 16 }, { name: 'Flanged Bearing 1/2in Hex', count: 4 }]
   };
 
-  window.MockParts = { LIB: LIB, byKey: byKey, PART_STUDIO: PART_STUDIO, ASSEMBLY: ASSEMBLY };
+  window.MockParts = { LIB: LIB, byKey: byKey, PART_STUDIO: PART_STUDIO, ASSEMBLY: ASSEMBLY,
+                       resting: resting, restIndex: restIndex, isModelled: isModelled, DOWN: DOWN };
 })();

@@ -451,3 +451,13 @@ part on a face; learn from Orca Slicer's layout and preview views); and for the 
   having started it; all six time limits are guesses until the H2S is timed.
 - Fri 11-20 00:25 PT: delivery hardening review round 5 dispatched (Fable), result
   `results/delivery-hardening-review-5.md`.
+- Fri 11-20 00:34 PT: Fable round on mockup round 3 returned: every walk passed at 320 px with a clean
+  console. It moved the pictures of resting positions directly under the view, replaced
+  the red bar that covered the rotation handle with a one-line status, made face markers
+  amber arrows, slowed the view's turning, kept Arrange and Auto-orient as two buttons
+  (Arrange offers "lay them the best way" only when it has checked more would fit), gave
+  the scenario strip's options plain names, and rewrote `DECISIONS.md` as seven
+  questions. Unverified in the browser: one last text change in the selection row, and
+  the "Lay them the best way" button, which never appeared on any plate it built.
+  Coordinator loaded the page through the viewer: renders, no console errors. Mockup
+  committed. **Mockup strand closed until the owner's feedback.**

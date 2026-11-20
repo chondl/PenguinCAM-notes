@@ -313,15 +313,17 @@
   function estimate(result, S, filament) {
     var speeds = { outer: S.outer_wall_speed, inner: S.inner_wall_speed, sparse: S.sparse_infill_speed, solid: S.internal_solid_infill_speed,
                    top: S.top_surface_speed, bottom: S.initial_layer_infill_speed, support: S.support_speed, brim: S.initial_layer_speed };
-    var secs = 0, mm3 = 0;
+    var secs = 0, mm3 = 0, byType = {};
     TYPES.forEach(function (t) {
       var len = result.length[t.id];
-      secs += len / (speeds[t.id] * 0.55);                 // acceleration and cornering losses
+      byType[t.id] = len / (speeds[t.id] * 0.55);          // acceleration and cornering losses
+      secs += byType[t.id];
       mm3 += len * S.line_width * S.layer_height * (t.id === 'support' ? 0.6 : 1);
     });
-    secs += result.layers * 5 + 6 * 60;                     // layer changes, heating and levelling
+    var overhead = result.layers * 5 + 6 * 60;              // layer changes, heating and levelling
+    secs += overhead;
     var grams = mm3 / 1000 * filament.density;
-    return { seconds: Math.round(secs), grams: grams, meters: grams / filament.gPerM };
+    return { seconds: Math.round(secs), grams: grams, meters: grams / filament.gPerM, byType: byType, overhead: overhead };
   }
 
   /* --------------------------------------------------- the viewer */
@@ -392,7 +394,8 @@
       TYPES.forEach(function (t) { if (lines[t.id]) lines[t.id].geometry.setDrawRange(0, result.acc[t.id].ends[k]); });
       needs = true;
     }
-    return { show: show, showGhosts: showGhosts, clear: clear, setLayer: setLayer, resize: resize, frameView: frameView,
+    function setVisible(id, on) { if (lines[id]) { lines[id].visible = on; needs = true; } }
+    return { show: show, showGhosts: showGhosts, clear: clear, setLayer: setLayer, resize: resize, frameView: frameView, setVisible: setVisible,
              reset: function (copies) { frameView(copies); } };
   }
 

@@ -184,7 +184,29 @@
   });
   $('#sc-arm').addEventListener('click', function () { window.Wizard.Mock.arm($('#sc-error').value); window.Wizard.armed(); });
   $('#sc-speed').addEventListener('change', function () { window.Wizard.Mock.speed = this.value; });
-  $('#sc-width').addEventListener('change', function () { setWidth(+this.value); });
+  $('#sc-width').addEventListener('change', function () { if (this.value !== 'drag') setWidth(+this.value); });
+  $('#sc-lay').addEventListener('change', function () { window.Wizard.setOption('lay', this.value); });
+  $('#sc-mouse').addEventListener('change', function () { window.Wizard.setOption('scheme', this.value); });
+  $('#sc-arrive').addEventListener('change', function () { window.Wizard.setOption('arrival', this.value); });
+  // A drag handle on the panel's left edge, as Onshape's own panel probably has (PenguinCAM's
+  // CNC help tells users to widen it). The limits here, 240 to 800 px, are the test bed's.
+  (function () {
+    var grip = $('#os-right-grip'), sel = $('#sc-width'), start = null;
+    var opt = document.createElement('option'); opt.value = 'drag'; opt.hidden = true; sel.appendChild(opt);
+    grip.addEventListener('pointerdown', function (e) {
+      start = { x: e.clientX, w: $('#os-right').getBoundingClientRect().width };
+      grip.setPointerCapture(e.pointerId); grip.classList.add('on'); e.preventDefault();
+    });
+    grip.addEventListener('pointermove', function (e) {
+      if (!start) return;
+      var w = Math.round(Math.min(800, Math.max(240, start.w + (start.x - e.clientX))));
+      document.documentElement.style.setProperty('--panel-width', w + 'px');
+      var preset = Array.prototype.some.call(sel.options, function (o) { return o.value === String(w); });
+      if (preset) sel.value = String(w); else { opt.textContent = w + ' px (dragged)'; sel.value = 'drag'; }
+      gfx.resize(); window.Wizard.resize();
+    });
+    grip.addEventListener('pointerup', function () { start = null; grip.classList.remove('on'); });
+  })();
   $('#sc-context').addEventListener('change', function () { setContext(this.value); });
   $('#sc-reset').addEventListener('click', function () { window.Wizard.Mock.armed = []; renderArmed(); setContext($('#sc-context').value); });
 

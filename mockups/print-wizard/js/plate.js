@@ -117,7 +117,7 @@
       var d = derive(c);
       if (d.height > plate.height + EPS) {
         problems.push({ rule: 'too_tall', copies: [c.id], message: labelOf(c) + ' stands ' + Math.round(d.height) +
-          ' mm tall; the printer prints up to ' + plate.height + ' mm. Press Lay on face, then click one of its large flat faces.' });
+          ' mm tall; the printer prints up to ' + plate.height + ' mm. Lay it down another way, or press Auto-orient.' });
       }
     });
     for (var i = 0; i < copies.length; i++) {
@@ -186,8 +186,15 @@
   }
 
   // A free place for one new copy among the others, scanning the plate; beside it if none.
+  // A quick "cannot fit": the copy's outline is larger than the plate area the others leave.
+  function noRoom(copy, others, plate) {
+    var free = (plate.x - 2 * plate.margin) * (plate.y - 2 * plate.margin);
+    others.forEach(function (o) { free -= hullArea(derive(o).hull); });
+    return hullArea(derive(copy).hull) > free;
+  }
   function place(copy, others, plate, fine) {
     var d = derive(copy), step = fine || 4;
+    if (noRoom(copy, others, plate)) { copy.x = plate.x + plate.spacing * 4 + d.w / 2; copy.y = d.l / 2; return false; }
     var oh = others.map(function (o) { var h = worldHull(o); return { h: h, b: bbox(h) }; });
     for (var y = plate.margin + d.l / 2; y <= plate.y - plate.margin - d.l / 2 + EPS; y += step) {
       for (var x = plate.margin + d.w / 2; x <= plate.x - plate.margin - d.w / 2 + EPS; x += step) {
@@ -198,7 +205,7 @@
           if (x - d.w / 2 > b.maxX + plate.spacing || x + d.w / 2 < b.minX - plate.spacing ||
               y - d.l / 2 > b.maxY + plate.spacing || y + d.l / 2 < b.minY - plate.spacing) continue;
           me = me || worldHull(copy);
-          if (polyDistance(me, oh[i].h) < plate.spacing + 0.5) ok = false;
+          if (closer(me, oh[i].h, plate.spacing + 0.5)) ok = false;
         }
         if (ok) return true;
       }
@@ -229,7 +236,7 @@
         if (copy.x - d.w / 2 > b.maxX + plate.spacing || copy.x + d.w / 2 < b.minX - plate.spacing ||
             copy.y - d.l / 2 > b.maxY + plate.spacing || copy.y + d.l / 2 < b.minY - plate.spacing) continue;
         me = me || worldHull(copy);
-        if (polyDistance(me, oh[i].h) < plate.spacing + 0.5) ok = false;
+        if (closer(me, oh[i].h, plate.spacing + 0.5)) ok = false;
       }
       if (ok) return true;
     }
@@ -248,6 +255,136 @@
     return [(g.minX + g.maxX) / 2, (g.minY + g.maxY) / 2];
   }
 
-  window.MockPlate = { derive: derive, worldHull: worldHull, check: check, arrange: arrange, place: place, placeNear: placeNear,
+  /* ------------------------------------------------------------ the pile arrange */
+  // Research 2026-11-19, section C: largest first; each copy tried at the angle that gives its
+  // outline the smallest rectangle and at a quarter, half and three-quarter turn from it (45
+  // degrees more only if none of those fits); every free spot on a 5 mm grid scored by how
+  // small and square the pile stays and how near the plate's middle it is, then refined at
+  // 1 mm; the pile is centred at the end. Copies that fit nowhere wait beside the plate.
+  function hullArea(h) { var a = 0; for (var i = 0, j = h.length - 1; i < h.length; j = i++) a += (h[j][0] + h[i][0]) * (h[j][1] - h[i][1]); return Math.abs(a / 2); }
+  function minRectAngle(h) {
+    var best = 0, bestA = Infinity;
+    for (var i = 0; i < h.length; i++) {
+      var a = h[i], b = h[(i + 1) % h.length], th = Math.atan2(b[1] - a[1], b[0] - a[0]);
+      var c = Math.cos(-th), s = Math.sin(-th), x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (var k = 0; k < h.length; k++) {
+        var x = h[k][0] * c - h[k][1] * s, y = h[k][0] * s + h[k][1] * c;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+      var A = (x1 - x0) * (y1 - y0); if (A < bestA - 1e-6) { bestA = A; best = -th; }
+    }
+    return best * 180 / Math.PI;
+  }
+  // true when two outlines are closer than lim (stops at the first pair of edges that is)
+  function closer(A, B, lim) {
+    if (inside(A[0], B) || inside(B[0], A)) return true;
+    var i, j, ba = bbox(A), bb = bbox(B);
+    // only a vertex within lim of the other outline's box can be within lim of that outline
+    function near(P, b) { return P.filter(function (p) { return p[0] > b.minX - lim && p[0] < b.maxX + lim && p[1] > b.minY - lim && p[1] < b.maxY + lim; }); }
+    var An = near(A, bb), Bn = near(B, ba);
+    for (i = 0; i < An.length; i++) for (j = 0; j < B.length; j++) if (segDist(An[i], B[j], B[(j + 1) % B.length]) < lim) return true;
+    for (i = 0; i < Bn.length; i++) for (j = 0; j < A.length; j++) if (segDist(Bn[i], A[j], A[(j + 1) % A.length]) < lim) return true;
+    // edges that cross: only edges that reach into the other outline's box can
+    function edgesIn(P, b) {
+      var out = [];
+      for (var k = 0; k < P.length; k++) {
+        var p = P[k], q = P[(k + 1) % P.length];
+        if (Math.max(p[0], q[0]) >= b.minX && Math.min(p[0], q[0]) <= b.maxX && Math.max(p[1], q[1]) >= b.minY && Math.min(p[1], q[1]) <= b.maxY) out.push([p, q]);
+      }
+      return out;
+    }
+    var Ae = edgesIn(A, bb), Be = edgesIn(B, ba);
+    for (i = 0; i < Ae.length; i++) for (j = 0; j < Be.length; j++) if (segsCross(Ae[i][0], Ae[i][1], Be[j][0], Be[j][1])) return true;
+    return false;
+  }
+  function pile(copies, plate) {
+    var order = copies.slice().sort(function (a, b) { return hullArea(derive(b).hull) - hullArea(derive(a).hull); });
+    var placed = [], pb = null, parked = 0, sideY = 0, lim = plate.spacing + 0.5;
+    var mx = plate.x / 2, my = plate.y / 2;
+    function scoreAt(w0, x, y, d) {
+      var minX = x - d.w / 2, maxX = x + d.w / 2, minY = y - d.l / 2, maxY = y + d.l / 2;
+      if (pb) { minX = Math.min(minX, pb.minX); maxX = Math.max(maxX, pb.maxX); minY = Math.min(minY, pb.minY); maxY = Math.max(maxY, pb.maxY); }
+      var w = maxX - minX, l = maxY - minY;
+      return Math.sqrt(w * l) + 0.2 * Math.sqrt((x - mx) * (x - mx) + (y - my) * (y - my)) + 0.3 * Math.max(w, l);
+    }
+    function freeAt(d, x, y) {
+      var me = null;
+      for (var i = 0; i < placed.length; i++) {
+        var b = placed[i].b;
+        if (x - d.w / 2 > b.maxX + plate.spacing || x + d.w / 2 < b.minX - plate.spacing ||
+            y - d.l / 2 > b.maxY + plate.spacing || y + d.l / 2 < b.minY - plate.spacing) continue;
+        me = me || d.hull.map(function (pt) { return [pt[0] + x, pt[1] + y]; });
+        if (closer(me, placed[i].h, lim)) return false;
+      }
+      return true;
+    }
+    order.forEach(function (c) {
+      var q0 = c.q.clone(); c.d = null;
+      var base = minRectAngle(derive(c).hull), angles = [0, 90, 180, 270, 45, 135], best = null;
+      var full = noRoom(c, placed.map(function (p) { return p.c; }), plate);
+      for (var ai = 0; ai < angles.length && !full; ai++) {
+        if (ai >= 4 && best) break;
+        c.q = q0.clone(); yaw(c, base + angles[ai]); var d = derive(c);
+        var x0 = plate.margin + d.w / 2, x1 = plate.x - plate.margin - d.w / 2 + EPS, y0 = plate.margin + d.l / 2, y1 = plate.y - plate.margin - d.l / 2 + EPS;
+        // score every spot first (cheap), then test spots best first: the first free one wins
+        var spots = [];
+        for (var y = y0; y <= y1; y += 5) for (var x = x0; x <= x1; x += 5) spots.push([scoreAt(0, x, y, d), x, y]);
+        spots.sort(function (a, b) { return a[0] - b[0]; });
+        for (var si = 0; si < spots.length; si++) {
+          if (best && spots[si][0] >= best.s) break;
+          if (!freeAt(d, spots[si][1], spots[si][2])) continue;
+          best = { s: spots[si][0], x: spots[si][1], y: spots[si][2], q: c.q.clone(), d: d, x0: x0, x1: x1, y0: y0, y1: y1 };
+          break;
+        }
+      }
+      if (!best) {
+        c.q = q0; c.d = null; var dp = derive(c);
+        c.x = plate.x + plate.spacing * 4 + dp.w / 2; c.y = sideY + dp.l / 2; sideY += dp.l + plate.spacing; parked++;
+        return;
+      }
+      c.q = best.q; c.d = null; var dd = derive(c), bx = best.x, by = best.y;
+      for (var dy = -5; dy <= 5; dy++) for (var dx = -5; dx <= 5; dx++) {
+        var xx = bx + dx, yy = by + dy;
+        if (xx < best.x0 || xx > best.x1 || yy < best.y0 || yy > best.y1 || !freeAt(dd, xx, yy)) continue;
+        var s2 = scoreAt(0, xx, yy, dd);
+        if (s2 < best.s) { best.s = s2; best.x = xx; best.y = yy; }
+      }
+      c.x = best.x; c.y = best.y;
+      var h = worldHull(c), b = bbox(h);
+      placed.push({ c: c, h: h, b: b });
+      pb = pb ? { minX: Math.min(pb.minX, b.minX), maxX: Math.max(pb.maxX, b.maxX), minY: Math.min(pb.minY, b.minY), maxY: Math.max(pb.maxY, b.maxY) } : b;
+    });
+    if (pb) {
+      var cdx = mx - (pb.minX + pb.maxX) / 2, cdy = my - (pb.minY + pb.maxY) / 2;
+      placed.forEach(function (p) { p.c.x += cdx; p.c.y += cdy; });
+    }
+    return parked;
+  }
+
+  // Arrange as the research recommends: run the shelf packer above and the pile, keep the
+  // result that leaves fewer copies beside the plate, the smaller pile breaking a tie.
+  // Returns { parked, placed, turned, used: 'pile' | 'shelf', ms }.
+  function bestArrange(copies, plate) {
+    var t0 = performance.now();
+    function snap() { return copies.map(function (c) { return { c: c, x: c.x, y: c.y, q: c.q.clone() }; }); }
+    function restore(s) { s.forEach(function (b) { b.c.x = b.x; b.c.y = b.y; b.c.q = b.q.clone(); b.c.d = null; }); }
+    function pileArea() {
+      var on = copies.filter(function (c) { return c.x < plate.x + plate.spacing; });
+      if (!on.length) return 0;
+      var g = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+      on.forEach(function (c) { var b = bbox(worldHull(c)); g.minX = Math.min(g.minX, b.minX); g.maxX = Math.max(g.maxX, b.maxX); g.minY = Math.min(g.minY, b.minY); g.maxY = Math.max(g.maxY, b.maxY); });
+      return (g.maxX - g.minX) * (g.maxY - g.minY);
+    }
+    var start = snap();
+    var pa = arrange(copies, plate), A = snap(), aArea = pileArea();
+    restore(start);
+    var pp = pile(copies, plate), pArea = pileArea(), used = 'pile';
+    if (pa < pp || (pa === pp && aArea < pArea)) { restore(A); used = 'shelf'; }
+    var parked = used === 'pile' ? pp : pa, turned = 0;
+    start.forEach(function (s) { if (s.q.angleTo(s.c.q) > 0.02) turned++; });
+    return { parked: parked, placed: copies.length - parked, turned: turned, used: used, ms: Math.round(performance.now() - t0) };
+  }
+
+  window.MockPlate = { derive: derive, worldHull: worldHull, check: check, arrange: arrange, bestArrange: bestArrange, place: place, placeNear: placeNear,
                        centre: centre, yaw: yaw, bbox: bbox, inside: inside };
 })();

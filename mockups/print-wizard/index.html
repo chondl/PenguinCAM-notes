@@ -66,10 +66,33 @@
     </label>
     <button type="button" id="sc-reset">Reset</button>
     <a href="DECISIONS.md" target="_blank" rel="noopener">Decisions to react to</a>
+    <span class="sc-group">Layout step, options to compare:</span>
+    <label>Lay on face
+      <select id="sc-lay">
+        <option value="strip" selected>Pictures under the view (recommended)</option>
+        <option value="markers">Arrows on the part's faces</option>
+        <option value="box">Box around the part</option>
+        <option value="tip">Tip handle</option>
+      </select>
+    </label>
+    <label>Mouse
+      <select id="sc-mouse">
+        <option value="O" selected>Like Onshape (recommended)</option>
+        <option value="S">Like a slicer</option>
+        <option value="T">Top-down first</option>
+      </select>
+    </label>
+    <label>Parts arrive
+      <select id="sc-arrive">
+        <option value="auto" selected>lying their best way (recommended)</option>
+        <option value="modelled">as modelled</option>
+      </select>
+    </label>
     <p class="sc-how" id="sc-how"><strong>How to use this mockup.</strong> The dark panel on the right is the wizard; go through it with Next.
-      On its Parts step, click parts in the list or the picture on the left, as you would in Onshape.
-      Nothing is real: no slicing, no Onshape, no printer. This yellow strip is not part of the product: use it to
-      make an error happen (choose one, press Arm, then carry on), to try a wider panel, an Assembly or the standalone page, and to slow the mocked progress to real time.
+      On its Parts step, click parts in the list or the picture on the left, as you would in Onshape. Nothing is real: no slicing, no Onshape, no printer.
+      <strong>To compare this round:</strong> on the Layout step, select a copy, then switch <em>Lay on face</em>, <em>Mouse</em> and <em>Parts arrive</em> in this yellow strip; each works at once on the plate in front of you.
+      Open Advanced mode from the Setup step at each <em>Panel width</em>, or drag the panel's left edge (the real panel can probably be dragged wider in Onshape; that is not confirmed).
+      The strip also makes an error happen (choose one, press Arm, carry on) and switches to an Assembly or the standalone page. It is not part of the product.
       <button type="button" id="sc-how-hide">Hide</button></p>
   </div>
 
@@ -97,6 +120,7 @@
         <div id="os-graphics-note">Graphics area: click a part to select it</div>
       </section>
       <aside id="os-right" aria-label="Right panel">
+        <div id="os-right-grip" title="Drag to make the panel wider or narrower (mockup: Onshape's real limits are not known)"></div>
         <div id="os-right-head">Penguin Slicer</div>
         <div id="panel-slot"></div>
       </aside>
@@ -178,32 +202,33 @@
       <section class="step" data-step="layout" hidden>
         <h2>Layout</h2>
         <div id="layout-toolbar">
-          <button type="button" class="btn small" id="btn-arrange">Arrange</button>
-          <button type="button" class="btn small toggle" id="btn-lay" aria-pressed="false" title="Shows every flat face a copy can lie on; click one to lay the copy down on it. Double-clicking a face does the same without this tool.">Lay on face</button>
+          <button type="button" class="btn small" id="btn-arrange" title="Place every copy on the plate automatically">Arrange</button>
+          <button type="button" class="btn small" id="btn-orient" title="Lay the selected copies, or every copy when none is selected, the best way">Auto-orient</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn small icon" id="btn-undo" title="Undo (Ctrl+Z)" aria-label="Undo" disabled>&#8630;</button>
+          <button type="button" class="btn small icon" id="btn-redo" title="Redo (Ctrl+Y)" aria-label="Redo" disabled>&#8631;</button>
         </div>
+        <button type="button" id="layout-alert" class="layout-alert ok" disabled></button>
         <div id="layout-view" class="gl-view">
-          <div id="lay-banner" class="lay-banner" hidden>Click a highlighted face to lay that copy down on it. <button type="button" class="linkish" id="btn-lay-done">Done</button></div>
-          <button type="button" id="layout-alert" class="layout-alert" hidden></button>
           <div class="view-btns" aria-label="View">
-            <button type="button" id="btn-view" title="Zoom to the copies">Zoom to copies</button>
+            <button type="button" id="btn-view" title="Zoom to the copies (F)">Zoom to copies</button>
             <button type="button" id="btn-view-plate" title="Show the whole plate">Whole plate</button>
+            <button type="button" id="btn-top" title="Look straight down (Ctrl+1)">Top</button>
+            <button type="button" id="btn-tilt" title="Tilt the view, or look straight down again" hidden>3D</button>
           </div>
         </div>
         <div id="layout-selrow" class="layout-selrow">
           <div id="layout-selection" class="hint"></div>
-          <button type="button" class="btn small" id="btn-dup" disabled>Duplicate</button>
-          <button type="button" class="btn small" id="btn-del" disabled>Delete</button>
+          <button type="button" class="btn small" id="btn-dup" disabled title="Duplicate (Ctrl+D)">Duplicate</button>
+          <button type="button" class="btn small" id="btn-del" disabled title="Delete (Delete key)">Delete</button>
         </div>
+        <div id="rest-strip" class="rest-strip" hidden></div>
+        <div id="layout-orient" class="layout-orient hint" hidden></div>
+        <p id="layout-gestures" class="gestures"></p>
         <div id="layout-errors" aria-live="polite"></div>
-        <p class="hint" id="layout-hint">Drag a copy to move it; drag its round handle to turn it. Double-click a flat face to lay the copy down on it. Drag empty space to turn the view.</p>
         <details class="hint more-help">
           <summary>More ways to move and look</summary>
-          <ul>
-            <li>Shift-click adds a copy to the selection; drag one to move them all.</li>
-            <li>The handle snaps every 45 degrees.</li>
-            <li>Right-drag or Shift-drag empty space to slide the view; scroll to zoom.</li>
-            <li>Delete removes the selection; Ctrl+A selects every copy; Escape clears.</li>
-          </ul>
+          <ul id="layout-more"></ul>
         </details>
         <p class="hint" id="layout-info"></p>
       </section>
@@ -250,8 +275,8 @@
             <span class="spacer"></span>
             <button type="button" class="btn small icon" id="btn-preview-view" title="Reset view" aria-label="Reset view">&#8962;</button>
           </div>
-          <ul id="legend" class="legend"></ul>
-          <p class="hint">Drag the bar on the right to see the plate built up layer by layer. Drag to turn the view, right-drag to pan, scroll to zoom.</p>
+          <ul id="legend" class="legend" aria-label="Line types and their print time"></ul>
+          <p class="hint">Click a line type to hide it. Drag the bar on the right to see the plate built up layer by layer. Drag to turn the view, right-drag to pan, scroll to zoom.</p>
         </div>
         <div id="preview-toast" class="toast" hidden></div>
       </section>
@@ -270,20 +295,27 @@
       </div>
     </footer>
 
-    <!-- ===== ADVANCED MODE: fills the whole panel ===== -->
+    <!-- ===== ADVANCED MODE: fills the whole panel, in the same browser tab ===== -->
     <div id="advanced" class="advanced" hidden>
       <div class="adv-head">
-        <button type="button" class="btn small" id="adv-back">&lsaquo; Setup</button>
+        <button type="button" class="btn small" id="adv-back" title="Back to the Setup step; your changes stay">&lsaquo; Setup</button>
         <div class="adv-title"><strong>Advanced mode</strong><span id="adv-sub"></span></div>
         <button type="button" class="btn small" id="adv-reset-all">Reset all</button>
       </div>
       <div class="adv-tools">
-        <input type="text" id="adv-search" placeholder="Search settings" autocomplete="off" spellcheck="false">
+        <input type="text" id="adv-search" placeholder="Search every setting" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="adv-tools adv-tools2">
+        <div class="adv-tier" id="adv-tier" role="group" aria-label="Which settings">
+          <button type="button" data-tier="common" class="on">Common</button><button type="button" data-tier="all">All settings</button>
+        </div>
         <label class="adv-changed"><input type="checkbox" id="adv-only-changed"> Changed only</label>
       </div>
-      <div class="adv-tabs" id="adv-tabs" role="tablist"></div>
-      <div class="adv-list" id="adv-list"></div>
-      <div class="adv-foot"><button type="button" class="btn primary" id="adv-done">Done</button></div>
+      <div class="adv-body">
+        <div class="adv-tabs" id="adv-tabs" role="tablist"></div>
+        <div class="adv-list" id="adv-list"></div>
+      </div>
+      <div class="adv-foot"><span class="hint">Your changes stay for this print.</span><button type="button" class="btn primary" id="adv-done">Back to Setup</button></div>
     </div>
   </div>
 

@@ -38,10 +38,13 @@
   var S;
   function fresh(ctx) {
     return { ctx: ctx, step: 'setup', filament: 'petg', profile: 'structural', changes: {}, parts: [], copies: [],
-             selected: [], nextId: 1, laidOut: false, problems: [], layMode: false, job: null, result: null, resultSig: null,
-             print: null, action: 'print', layer: 0, advTab: 'Quality', advSearch: '', advOnlyChanged: false, followPrint: true,
-             layoutNotes: [], previewMsg: null };
+             selected: [], nextId: 1, laidOut: false, problems: [], job: null, result: null, resultSig: null,
+             print: null, action: 'print', layer: 0, advTab: 'Quality', advSearch: '', advOnlyChanged: false, advTier: 'common', advOpen: {},
+             followPrint: true, layoutNotes: [], previewMsg: null, undo: [], redo: [], hiddenTypes: {} };
   }
+  // The choices made in the scenario strip; they outlast Reset, since they are the owner's,
+  // not the student's: how a copy is laid on a face, the mouse scheme, how parts arrive.
+  var Opt = { lay: 'strip', scheme: 'O', arrival: 'auto' };
   function profileObj() { return ST.PROFILES.filter(function (p) { return p.id === S.profile; })[0]; }
   function filamentObj() { return ST.FILAMENTS.filter(function (f) { return f.id === S.filament; })[0]; }
   function eff() {
@@ -107,10 +110,38 @@
 
   /* ------------------------------------------------------------------ thumbnails */
   var thumbR = null, thumbs = {};
+  function thumbRenderer(px) {
+    if (!thumbR) thumbR = new T.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    thumbR.setSize(px, px);
+    return thumbR;
+  }
+  // A small picture of a part lying one way, seen from the front and above, on a patch of
+  // plate so that "down" reads at a glance. Cached per part and position.
+  function restThumb(key, idx, q) {
+    var ck = key + '#' + idx;
+    if (thumbs[ck] !== undefined) return thumbs[ck];
+    try {
+      var r = thumbRenderer(104), def = P.byKey[key], scene = new T.Scene();
+      Layout3D.lights(scene);
+      var m = new T.Mesh(def.geometry, new T.MeshStandardMaterial({ color: def.color, flatShading: true, roughness: 0.6 }));
+      m.quaternion.copy(q); m.updateMatrixWorld();
+      var box = new T.Box3().setFromObject(m), c = new T.Vector3(), sz = new T.Vector3(); box.getCenter(c); box.getSize(sz);
+      m.position.set(-c.x, -c.y, -box.min.z); scene.add(m);
+      var span = Math.max(sz.x, sz.y, sz.z);
+      var pl = new T.Mesh(new T.PlaneGeometry(Math.max(sz.x, sz.y) * 1.25 + 6, Math.max(sz.x, sz.y) * 1.25 + 6), new T.MeshBasicMaterial({ color: 0x2f3946 }));
+      pl.position.z = -0.2; scene.add(pl);
+      var cam = new T.PerspectiveCamera(30, 1, 0.5, 10000); cam.up.set(0, 0, 1);
+      var dist = span * 0.62 / Math.sin(15 * Math.PI / 180);
+      cam.position.set(dist * 0.35, -dist * 0.8, sz.z / 2 + dist * 0.5); cam.lookAt(0, 0, sz.z / 2);
+      r.render(scene, cam);
+      thumbs[ck] = r.domElement.toDataURL();
+    } catch (e) { thumbs[ck] = ''; }
+    return thumbs[ck];
+  }
   function thumb(key) {
     if (thumbs[key]) return thumbs[key];
     try {
-      if (!thumbR) { thumbR = new T.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }); thumbR.setSize(80, 80); }
+      thumbRenderer(80);
       var def = P.byKey[key], scene = new T.Scene();
       Layout3D.lights(scene);
       scene.add(new T.Mesh(def.geometry, new T.MeshStandardMaterial({ color: def.color, flatShading: true, roughness: 0.6 })));
@@ -142,7 +173,6 @@
   }
   function gotoStep(name) {
     if (S.step === 'preview' && name !== 'preview' && S.job && S.job.state === 'running') cancelSlice('left');
-    if (S.step === 'layout' && name !== 'layout') setLayMode(false);
     S.step = name;
     $all('#wizard .step').forEach(function (s) { s.hidden = s.getAttribute('data-step') !== name; });
     $all('#stepbar li').forEach(function (li) {
@@ -288,13 +318,24 @@
 
   /* ================================================================== advanced mode */
   var advResetArmed = false;
-  function openAdvanced() { $('#advanced').hidden = false; S.advSearch = ''; $('#adv-search').value = ''; renderAdvanced(); $('#adv-search').focus(); }
+  function openAdvanced() { $('#advanced').hidden = false; S.advSearch = ''; $('#adv-search').value = ''; renderAdvanced(); fitAdvanced(); $('#adv-search').focus(); }
   function closeAdvanced() { $('#advanced').hidden = true; advResetArmed = false; renderSetup(); updateSummary(); }
+  // Advanced mode follows the panel's width (a ResizeObserver, not a media query, so it also
+  // follows a panel the student drags wider): a row of tabs when narrow, a rail of tabs on
+  // the left from 480 px, and the groups in two columns from 700 px.
+  function fitAdvanced() {
+    var a = $('#advanced'), w = a.clientWidth;
+    if (!w) return;
+    a.classList.toggle('wide', w >= 480);
+    a.classList.toggle('xwide', w >= 700);
+  }
+  function inTier(s) { return S.advTier === 'all' || !s.more; }
   function renderAdvanced() {
     var pv = profileObj().values, v = eff(), n = changeCount();
     $('#adv-sub').textContent = profileObj().name + (n ? ', ' + n + ' changed' : ', no changes');
     var ra = $('#adv-reset-all'); ra.disabled = !n; ra.textContent = advResetArmed ? 'Reset all ' + n + '?' : 'Reset all';
     ra.classList.toggle('primary', advResetArmed);
+    $all('#adv-tier button').forEach(function (b) { var on = b.getAttribute('data-tier') === S.advTier; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
     var tabs = $('#adv-tabs'); tabs.innerHTML = '';
     ST.GROUPS.forEach(function (g) {
       var b = el('button', g === S.advTab && !S.advSearch ? 'on' : '', g); b.type = 'button'; b.setAttribute('role', 'tab');
@@ -305,20 +346,45 @@
     });
     var list = $('#adv-list'); list.innerHTML = '';
     var q = S.advSearch.trim().toLowerCase();
+    // Search and "Changed only" look through every setting, whatever the Common/All switch says.
     var rows = ST.SETTINGS.filter(function (s) {
       if (S.advOnlyChanged && !S.changes.hasOwnProperty(s.key)) return false;
       if (q) return (s.label + ' ' + s.sub + ' ' + s.group + ' ' + s.key.replace(/_/g, ' ')).toLowerCase().indexOf(q) >= 0;
-      return S.advOnlyChanged || s.group === S.advTab;
+      return S.advOnlyChanged || (s.group === S.advTab && inTier(s));
     });
     if (!rows.length) { list.appendChild(el('div', 'adv-empty', q ? 'No setting matches “' + S.advSearch + '”.' : 'No settings changed from ' + profileObj().name + '.')); return; }
-    var lastGroup = null, lastSub = null;
+    // Subgroups collapse. In Common every one starts open; in All only the first, so a long
+    // tab reads as a list of headings to open. Search and "Changed only" open them all.
+    var groups = [], cur = null, firstOfTab = {};
     rows.forEach(function (s) {
-      if ((q || S.advOnlyChanged) && s.group !== lastGroup) { list.appendChild(el('div', 'adv-group', s.group)); lastSub = null; }
-      if (s.sub !== lastSub) list.appendChild(el('div', 'adv-sub', s.sub));
-      lastGroup = s.group; lastSub = s.sub;
-      list.appendChild(advRow(s, v[s.key], pv[s.key], q));
+      if (!cur || cur.group !== s.group || cur.sub !== s.sub) { cur = { group: s.group, sub: s.sub, rows: [] }; groups.push(cur); if (!firstOfTab[s.group]) firstOfTab[s.group] = cur; }
+      cur.rows.push(s);
     });
-    if (!q && !S.advOnlyChanged) list.appendChild(el('div', 'adv-mock', 'Mockup note: this tab shows ' + rows.length + ' of Orca’s ' + S.advTab + ' settings as a sample. The product lists every one, taken from Orca’s own definitions.'));
+    var lastGroup = null, cols = el('div', 'adv-cols');
+    groups.forEach(function (g) {
+      if ((q || S.advOnlyChanged) && g.group !== lastGroup) cols.appendChild(el('div', 'adv-group', g.group));
+      lastGroup = g.group;
+      var key = S.advTier + '|' + g.group + '|' + g.sub;
+      var ch = g.rows.filter(function (s) { return S.changes.hasOwnProperty(s.key); }).length;
+      var open = q || S.advOnlyChanged ? true : (S.advOpen.hasOwnProperty(key) ? S.advOpen[key] : (S.advTier === 'common' || firstOfTab[g.group] === g || ch > 0));
+      var box = el('div', 'adv-grp' + (open ? ' open' : ''));
+      var head = el('button', 'adv-sub'); head.type = 'button'; head.setAttribute('aria-expanded', open ? 'true' : 'false');
+      head.appendChild(el('span', 'car', open ? '▾' : '▸'));
+      head.appendChild(el('span', 'nm', g.sub));
+      head.appendChild(el('span', 'ct', g.rows.length + (ch ? ' · ' + ch + ' changed' : '')));
+      if (ch) head.classList.add('has-changes');
+      head.addEventListener('click', function () { S.advOpen[key] = !open; renderAdvanced(); });
+      box.appendChild(head);
+      if (open) g.rows.forEach(function (s) { box.appendChild(advRow(s, v[s.key], pv[s.key], q)); });
+      cols.appendChild(box);
+    });
+    list.appendChild(cols);
+    if (!q && !S.advOnlyChanged) {
+      var shown = rows.length, total = ST.SETTINGS.filter(function (s) { return s.group === S.advTab; }).length;
+      list.appendChild(el('div', 'adv-mock', S.advTier === 'common'
+        ? 'Common shows the ' + shown + ' ' + S.advTab + ' settings teams change most; All settings shows ' + total + '. Mockup note: in Orca this tab has about ' + ST.ORCA_COUNT[S.advTab] + '; the product lists every one, taken from Orca’s own definitions.'
+        : 'Mockup note: All settings shows ' + total + ' of Orca’s about ' + ST.ORCA_COUNT[S.advTab] + ' ' + S.advTab + ' settings as a sample; the product lists every one, taken from Orca’s own definitions.'));
+    }
   }
   function advRow(s, value, profVal, q) {
     var changed = S.changes.hasOwnProperty(s.key);
@@ -358,8 +424,8 @@
       ctl.appendChild(input);
     }
     input.id = id;
-    var reset = el('button', 'reset', '↺'); reset.type = 'button';
-    reset.title = 'Back to ' + profileObj().name + ': ' + ST.formatValue(s, profVal);
+    var reset = el('button', 'reset', '↶'); reset.type = 'button';
+    reset.title = 'Undo this change: back to ' + profileObj().name + '’s ' + ST.formatValue(s, profVal);
     reset.setAttribute('aria-label', 'Reset ' + s.label);
     reset.addEventListener('click', function () { delete S.changes[s.key]; renderAdvanced(); });
     row.appendChild(lab); row.appendChild(ctl); row.appendChild(reset);
@@ -376,6 +442,10 @@
       advResetArmed = false; S.changes = {}; renderAdvanced();
     });
     $('#advanced').addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAdvanced(); });
+    $all('#adv-tier button').forEach(function (b) {
+      b.addEventListener('click', function () { S.advTier = b.getAttribute('data-tier'); renderAdvanced(); });
+    });
+    if (window.ResizeObserver) new ResizeObserver(fitAdvanced).observe($('#advanced'));
   }
 
   /* ================================================================== Parts step */
@@ -549,12 +619,52 @@
 
   /* ================================================================== Layout step */
   var editor = null;
+  // A new copy lies the way auto-orient chose for its part (unless the scenario strip says
+  // parts arrive as modelled); copy.auto says the choice was automatic, so the panel can say so.
   function newCopy(part) {
-    return { id: 'c' + (S.nextId++), partId: part.id, partKey: part.key, q: new T.Quaternion(), x: 0, y: 0 };
+    var c = { id: 'c' + (S.nextId++), partId: part.id, partKey: part.key, q: new T.Quaternion(), x: 0, y: 0, auto: false };
+    if (Opt.arrival === 'auto') {
+      var best = P.resting(part.key).list[0];
+      if (best && !best.modelled) { c.q = best.q.clone(); c.auto = true; }
+    }
+    return c;
+  }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function arrangeNote(res, offer) {
+    if (!res.parked) return [];
+    // Arrange keeps how each copy lies. `offer`, when given, is a plate Arrange also tried
+    // with every copy laid its best way, and which left fewer copies over: one button takes it.
+    var acts = [['Back to Parts', function () { gotoStep('parts'); }]];
+    if (offer) acts.unshift(['Lay them the best way: ' + (offer.parked ? (res.parked - offer.parked) + ' more fit' : 'all fit'), function () {
+      // done afresh on the plate as it is now, in case it changed since Arrange was pressed
+      pushUndo();
+      var n = 0;
+      S.copies.forEach(function (c) { var best = P.resting(c.partKey).list[0]; if (best && P.restIndex(c.partKey, c.q) !== 0 && turnToRest(c, best)) { c.auto = true; n++; } });
+      var now = PL.bestArrange(S.copies, PLATE);
+      S.layoutNotes = arrangeNote(now);
+      layHint = msg('ok', 'Laid ' + plural(n, 'copy', 'copies') + ' the best way and arranged again: ' + (now.parked ? plural(now.placed, 'copy fits', 'copies fit') + ' now.' : 'every copy now fits.'), null);
+      recheck(); editor.resetHandle(); editor.sync(); editor.resetView(); scheduleLayoutRender();
+    }]);
+    return [msg('error', 'Arrange placed ' + res.placed + ' of ' + (res.placed + res.parked) + ' copies' + (res.turned ? ', turning ' + res.turned : '') + '; ' + plural(res.parked, 'copy does', 'copies do') + ' not fit and ' + (res.parked === 1 ? 'waits' : 'wait') + ' beside the plate.',
+      offer ? 'Arrange keeps how each copy lies. With ' + plural(offer.changed, 'copy', 'copies') + ' laid the best way, ' + (offer.parked ? 'more would fit' : 'everything would fit') + '. Or lower the quantities and print the rest in a second job.'
+            : 'Lower the quantities and print the rest in a second job, or lay copies another way to make room.', acts)];
+  }
+  // Arrange keeps how each copy lies. When that leaves copies over and some do not lie
+  // their best way, it also tries the plate with every copy laid its best way; only when
+  // that leaves fewer over is it offered. Returns { snap, parked, changed } or null, and
+  // leaves the plate as Arrange made it.
+  function tryBestWay(res) {
+    var notBest = S.copies.filter(function (c) { return P.resting(c.partKey).list[0] && P.restIndex(c.partKey, c.q) !== 0; });
+    if (!res.parked || !notBest.length) return null;
+    var keep = S.copies.map(function (c) { return { c: c, x: c.x, y: c.y, q: c.q.clone(), auto: c.auto }; });
+    notBest.forEach(function (c) { if (turnToRest(c, P.resting(c.partKey).list[0])) c.auto = true; });
+    var res2 = PL.bestArrange(S.copies, PLATE), offer = res2.parked < res.parked ? { parked: res2.parked, changed: notBest.length } : null;
+    keep.forEach(function (k) { k.c.x = k.x; k.c.y = k.y; k.c.q = k.q; k.c.auto = k.auto; k.c.d = null; });
+    return offer;
   }
   // Copies follow the Parts step's quantities.
   function enterLayoutData() {
-    var fresh = [];
+    var fresh = [], before = S.copies.length;
     S.copies = S.copies.filter(function (c) { var p = partById(c.partId); return p && p.status === 'ready'; });
     S.parts.forEach(function (p) {
       if (p.status !== 'ready') return;
@@ -562,22 +672,121 @@
       while (have.length > p.qty) { var gone = have.pop(); S.copies.splice(S.copies.indexOf(gone), 1); }
       while (have.length < p.qty) { var c = newCopy(p); S.copies.push(c); have.push(c); fresh.push(c); }
     });
+    // Undo works within the Layout step; a change made on the Parts step starts afresh.
+    if (fresh.length || S.copies.length !== before + fresh.length) { S.undo = []; S.redo = []; }
+    // say once per part that it was laid down automatically, and how much lower it now stands
+    var told = [];
+    fresh.forEach(function (c) {
+      var p = partById(c.partId);
+      if (!c.auto || p.autoTold) return;
+      p.autoTold = true;
+      told.push(p.name + ' (' + Math.round(PL.derive(c).height) + ' mm tall instead of ' + Math.round(P.resting(c.partKey).modelled.height) + ' mm)');
+    });
+    if (told.length) layHint = msg('ok', 'Laid down automatically: ' + told.join(', ') + '.',
+      'Chosen by how much touches the plate, how much hangs over air and how tall it stands. Select a copy to see the other ways it can lie, or to put it back as modelled.');
     if (!S.laidOut || fresh.length === S.copies.length) {
-      var parked = PL.arrange(S.copies, PLATE); S.laidOut = true;
-      S.layoutNotes = parked ? [msg('error', ONE_PLATE_MESSAGE.split(';')[0] + ': ' + parked + ' cop' + (parked > 1 ? 'ies wait' : 'y waits') + ' beside it.', 'Lower the quantities and print the rest in a second job, or turn and drag copies to make room.', [['Back to Parts', function () { gotoStep('parts'); }]])] : [];
+      var res = PL.bestArrange(S.copies, PLATE); S.laidOut = true;
+      S.layoutNotes = arrangeNote(res);
     } else {
       // copies added to a plate the student already laid out join the group: each takes the
-      // free spot nearest the middle of the copies already there, and nothing else moves
+      // free spot nearest the middle of the copies already there, turned if that is what it
+      // takes, and nothing else moves
       fresh.forEach(function (c) {
         var others = S.copies.filter(function (o) { return o !== c && fresh.indexOf(o) < 0 || (fresh.indexOf(o) >= 0 && fresh.indexOf(o) < fresh.indexOf(c)); });
-        var mid = PL.centre(others, PLATE);
-        if (!PL.placeNear(c, others, PLATE, mid[0], mid[1])) PL.place(c, others, PLATE);
+        var mid = PL.centre(others, PLATE), q0 = c.q.clone(), turns = [0, 90, 45, 90], ok = false;
+        for (var t = 0; t < turns.length && !ok; t++) { if (turns[t]) PL.yaw(c, turns[t]); ok = PL.placeNear(c, others, PLATE, mid[0], mid[1], turns[t] ? 3 : 4); }
+        if (!ok) { c.q = q0; c.d = null; PL.place(c, others, PLATE); }
       });
     }
     if (fresh.length) needFit = true;
     S.selected = S.selected.filter(function (id) { return !!copyById(id); });
     recheck();
   }
+
+  /* ---------------------------------------------------------------- undo and redo */
+  // Every change on the Layout step can be undone: a snapshot of the copies (and of the
+  // parts' quantities, which Duplicate and Delete change) is taken before it.
+  var pendingSnap = null;
+  function snapshot() {
+    return { copies: S.copies.map(function (c) { return { id: c.id, partId: c.partId, partKey: c.partKey, q: c.q.clone(), x: c.x, y: c.y, auto: c.auto }; }),
+             parts: S.parts.map(function (p) { return { ref: p, qty: p.qty }; }), selected: S.selected.slice(), notes: S.layoutNotes };
+  }
+  function restoreSnap(s) {
+    S.copies = s.copies.map(function (c) { return { id: c.id, partId: c.partId, partKey: c.partKey, q: c.q.clone(), x: c.x, y: c.y, auto: c.auto }; });
+    S.parts = s.parts.map(function (p) { p.ref.qty = p.qty; return p.ref; });
+    S.selected = s.selected.slice(); S.layoutNotes = s.notes;
+    layHint = null; recheck(); editor.resetHandle(); scheduleLayoutRender(); updateSummary();
+  }
+  function pushUndo(s) { S.undo.push(s || snapshot()); if (S.undo.length > 60) S.undo.shift(); S.redo = []; }
+  function undo() { if (!S.undo.length) return; S.redo.push(snapshot()); restoreSnap(S.undo.pop()); }
+  function redo() { if (!S.redo.length) return; S.undo.push(snapshot()); restoreSnap(S.redo.pop()); }
+
+  /* ---------------------------------------------------------------- laying copies down */
+  // Turn a copy so that a resting position's face is down, keeping its turn on the plate.
+  function turnToRest(c, cand) {
+    if (cand.modelled) { if (P.isModelled(c.q)) return false; c.q = new T.Quaternion(); c.d = null; return true; }
+    var wn = cand.n.clone().applyQuaternion(c.q);
+    if (wn.z < -0.999) return false;
+    c.q = new T.Quaternion().setFromUnitVectors(wn.normalize(), P.DOWN).multiply(c.q); c.d = null;
+    return true;
+  }
+  // After copies were laid another way: find each a free spot if it needs one, then one
+  // sentence on what happened.
+  function afterLay(copies, what) {
+    var how = copies.map(function (c) { recheck(); return settle(c); });
+    var c0 = copies[0], h = Math.round(PL.derive(c0).height);
+    var head = copies.length === 1 ? copyLabel(c0) + ' now lies ' + what + ': ' + h + ' mm tall.'
+                                   : copies.length + ' copies of ' + partById(c0.partId).name + ' now lie ' + what + ': ' + h + ' mm tall.';
+    var arranged = how.indexOf('arranged') >= 0, moved = how.filter(Boolean).length;
+    layHint = msg('ok', head, arranged ? 'It needs more room lying this way, so the whole plate was arranged again.'
+      : moved ? (copies.length === 1 ? 'It no longer fitted where it stood, so it was moved' + (how[0] === 'turned' ? ' and turned' : '') + ' to the nearest free spot.' : moved + ' no longer fitted where they stood and moved to the nearest free spots.') : null);
+    if (arranged) needRefit = true;
+    recheck(); scheduleLayoutRender();
+  }
+  // The resting-position strip, the "As modelled" link and Auto-orient all end here.
+  function layCopies(copies, pick, what) {
+    var snap = snapshot(), changed = [];
+    copies.forEach(function (c) {
+      var cand = pick(c);
+      if (cand && turnToRest(c, cand)) changed.push(c);
+      if (cand) c.auto = what === 'auto';
+    });
+    if (!changed.length) { layHint = msg('info', (copies.length === 1 ? copyLabel(copies[0]) + ' already lies' : 'They already lie') + ' that way.', null); scheduleLayoutRender(); return; }
+    pushUndo(snap);
+    afterLay(changed, what === 'auto' ? 'its best way' : what === 'modelled' ? 'as modelled' : 'that way');
+  }
+  // Auto-orient: the selection, or every copy when nothing is selected. When every copy
+  // changes at once, the plate is arranged again after (as Orca's Q then A).
+  function autoOrient(ids) {
+    var list = (ids && ids.length ? ids : S.copies.map(function (c) { return c.id; })).map(copyById).filter(Boolean);
+    var whole = !(ids && ids.length);
+    if (!whole) return layCopies(list, function (c) { return P.resting(c.partKey).list[0]; }, 'auto');
+    var snap = snapshot(), changed = 0;
+    list.forEach(function (c) { var best = P.resting(c.partKey).list[0]; if (best && turnToRest(c, best)) changed++; if (best) c.auto = true; });
+    if (!changed) { layHint = msg('info', 'Every copy already lies its best way.', null); scheduleLayoutRender(); return; }
+    pushUndo(snap); recheck();
+    var res = null;
+    if (S.problems.some(function (p) { return p.rule !== 'too_tall'; })) { res = PL.bestArrange(S.copies, PLATE); S.layoutNotes = arrangeNote(res); needRefit = true; }
+    layHint = msg('ok', 'Auto-orient laid ' + plural(changed, 'copy', 'copies') + (changed === 1 ? ' its' : ' their') + ' best way' + (res ? ', then arranged the plate to make room.' : '.'), null);
+    recheck(); scheduleLayoutRender();
+  }
+  // The tip handle: each selected copy steps to its next resting position (Shift: the one before).
+  function tipSelected(back) {
+    var list = S.selected.map(copyById).filter(Boolean);
+    if (!list.length) return;
+    var snap = snapshot(), changed = [];
+    list.forEach(function (c) {
+      var R = P.resting(c.partKey).list, n = R.length; if (!n) return;
+      var i = P.restIndex(c.partKey, c.q);
+      var next = i < 0 ? (back ? n - 1 : 0) : (i + (back ? n - 1 : 1)) % n;
+      if (next !== i && turnToRest(c, R[next])) { c.auto = false; changed.push(c); }
+    });
+    if (!changed.length) { layHint = msg('info', copyLabel(list[0]) + ' has only one way to lie flat.', null); scheduleLayoutRender(); return; }
+    pushUndo(snap);
+    var c0 = changed[0], k = P.restIndex(c0.partKey, c0.q), n0 = P.resting(c0.partKey).list.length;
+    afterLay(changed, 'on its ' + ordinal(k + 1) + ' of ' + n0 + ' sides' + (k === 0 ? ' (the best)' : ''));
+  }
+  function ordinal(n) { return ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][n - 1] || n + 'th'; }
   // One sentence per copy that is too close to two or more others.
   function recheck() {
     var raw = PL.check(S.copies, PLATE, copyLabel), close = raw.filter(function (p) { return p.rule === 'too_close'; });
@@ -614,7 +823,7 @@
     }
     copy.x = keep.x; copy.y = keep.y; copy.q = keep.q; copy.d = null;
     var before = S.copies.map(function (c) { return { c: c, x: c.x, y: c.y, q: c.q.clone() }; });
-    if (PL.arrange(S.copies, PLATE) === 0) { recheck(); if (!S.problems.length) return 'arranged'; }
+    if (PL.bestArrange(S.copies, PLATE).parked === 0) { recheck(); if (!S.problems.some(function (p) { return p.rule !== 'too_tall'; })) return 'arranged'; }
     before.forEach(function (b) { b.c.x = b.x; b.c.y = b.y; b.c.q = b.q; b.c.d = null; });
     recheck();
     return null;
@@ -637,29 +846,44 @@
           if (how !== 'toggle' || S.selected.length <= 1) editor.resetHandle();
           renderLayoutSide(); editor.sync();
         },
+        // a drag or a lay-down is about to change the plate: keep what it was, for undo
+        begin: function () { pendingSnap = snapshot(); },
         changed: function (why, copy) {
+          if (pendingSnap && (why === 'move' || why === 'rotate' || why === 'lay')) { pushUndo(pendingSnap); pendingSnap = null; }
           recheck();
-          if (why === 'lay' && copy) {
-            var moved = settle(copy);
-            layHint = msg('ok', copyLabel(copy) + ' now lies on that face: ' + Math.round(PL.derive(copy).height) + ' mm tall.',
-              moved === 'arranged' ? 'It needs more room lying this way, so the whole plate was arranged again.'
-                : moved ? 'It no longer fitted where it stood, so it was moved' + (moved === 'turned' ? ' and turned' : '') + ' to the nearest free spot.' : null);
-            if (moved === 'arranged') { needRefit = true; }
-          }
+          if (why === 'lay' && copy) { afterLay([copy], 'on that ' + (Opt.lay === 'box' ? 'side' : 'face')); return; }
           scheduleLayoutRender();
+          // a click (not a drag) just selected a copy: bring what can be done with it into
+          // sight under the picture. Done on release, so the picture never moves under a press.
+          if (why === 'select' && S.selected.length) requestAnimationFrame(function () { requestAnimationFrame(revealSelectionTools); });
         },
+        tip: tipSelected,
         hint: function (text) { layHint = msg('warn', text, null); renderLayoutSide(); },
         onKey: function (k) {
           if (k === 'delete') deleteSelected();
-          if (k === 'escape') { if (S.layMode) setLayMode(false); else { S.selected = []; renderLayoutSide(); editor.sync(); } }
+          if (k === 'escape') { S.selected = []; renderLayoutSide(); editor.sync(); }
           if (k === 'all') { S.selected = S.copies.map(function (c) { return c.id; }); renderLayoutSide(); editor.sync(); }
+          if (k === 'undo') undo();
+          if (k === 'redo') redo();
+          if (k === 'duplicate') duplicateSelected();
+          if (k === 'fit') editor.resetView();
+          if (k === 'top') editor.topView();
         }
       });
+      editor.setScheme(Opt.scheme); editor.setLayOption(Opt.lay);
     }
     applyLayoutArms();
     var fit = needFit; needFit = false;
     setTimeout(function () { editor.resize(); editor.sync(); if (fit) editor.resetView(); }, 0);
     renderLayoutSide();
+  }
+  // Scroll the panel just far enough that the selection's row, and the resting-position
+  // strip when it is the chosen way, are in sight; never so far that the picture's top goes.
+  function revealSelectionTools() {
+    var body = $('#wiz-body'), last = Opt.lay === 'strip' && !$('#rest-strip').hidden ? $('#rest-strip') : $('#layout-selrow');
+    var b = body.getBoundingClientRect(), r = last.getBoundingClientRect(), top = $('#layout-alert').getBoundingClientRect().top;
+    var over = r.bottom + 6 - b.bottom;
+    if (over > 0) body.scrollTop += Math.min(over, Math.max(0, top - b.top));
   }
   var needFit = false;      // the copies were just arranged or added to: zoom to them on entry
   var needRefit = false;    // the plate was arranged again behind a lay-down: show all of it
@@ -677,15 +901,22 @@
     var s = $('#layout-selection');
     $('#layout-selrow').classList.toggle('has-sel', sel.length > 0);
     if (!sel.length) s.textContent = S.copies.length + ' cop' + (S.copies.length === 1 ? 'y' : 'ies') + ' on the plate. Click one to select it.';
-    else if (sel.length === 1) { var d = PL.derive(sel[0]); s.innerHTML = ''; s.appendChild(el('strong', null, copyLabel(sel[0]))); s.appendChild(document.createTextNode(' ' + Math.round(d.w) + ' × ' + Math.round(d.l) + ' × ' + Math.round(d.height) + ' mm as it lies')); }
+    else if (sel.length === 1) { var d = PL.derive(sel[0]); s.innerHTML = ''; s.appendChild(el('strong', null, copyLabel(sel[0]))); s.appendChild(document.createTextNode(' ' + Math.round(d.w) + ' × ' + Math.round(d.l) + ' mm, ' + Math.round(d.height) + ' mm tall')); }
     else { s.innerHTML = ''; s.appendChild(el('strong', null, sel.length + ' copies')); s.appendChild(document.createTextNode(' move and turn together')); }
+    renderOrientLine(sel); renderStrip(sel); renderGestures();
+    $('#btn-undo').disabled = !S.undo.length; $('#btn-redo').disabled = !S.redo.length;
+    $('#btn-tilt').hidden = Opt.scheme !== 'T'; $('#btn-top').hidden = Opt.scheme === 'T';
     // The first problem is also said inside the picture, where the student is looking; the
     // full sentences and their remedy buttons are below it.
     var alertBox = $('#layout-alert');
-    alertBox.hidden = !S.problems.length || S.layMode; alertBox.innerHTML = '';
+    alertBox.innerHTML = ''; alertBox.classList.toggle('ok', !S.problems.length); alertBox.disabled = !S.problems.length;
     if (S.problems.length) {
-      alertBox.appendChild(document.createTextNode(S.problems[0].message.split('. ')[0] + '. '));
-      alertBox.appendChild(el('span', 'more', S.problems.length > 1 ? 'And ' + (S.problems.length - 1) + ' more: see below ↓' : 'How to fix ↓'));
+      var first = S.problems[0].message.split('. ')[0] + '.';
+      alertBox.appendChild(el('span', 'first', first)); alertBox.title = first;
+      alertBox.appendChild(el('span', 'more', S.problems.length > 1 ? '+' + (S.problems.length - 1) + ' more ↓' : 'Fix ↓'));
+    } else {
+      alertBox.title = '';
+      alertBox.appendChild(el('span', 'first', S.copies.length ? '✓ ' + (S.copies.length === 1 ? 'The copy fits' : 'All ' + S.copies.length + ' copies fit') + ' the plate.' : 'No copies yet: add parts on the Parts step.'));
     }
     var box = $('#layout-errors'); box.innerHTML = '';
     if (layHint) box.appendChild(layHint);
@@ -693,28 +924,111 @@
     if (S.problems.length) {
       box.appendChild(el('div', 'hint fix-first', S.problems.length === 1 ? 'Fix this before Next:' : 'Fix these ' + S.problems.length + ' before Next (click one to select its copies):'));
       S.problems.forEach(function (p) {
-        var acts = p.rule === 'too_tall' ? [['Lay on face', function (e) { e.stopPropagation(); S.selected = p.copies.slice(); setLayMode(true); editor.sync(); }]]
-                                         : [['Arrange', function (e) { e.stopPropagation(); doArrange(); }]];
-        var m = msg('error', p.message.split('. ')[0] + '.', p.message.split('. ').slice(1).join('. '), acts);
+        // a copy Arrange left beside the plate: pressing Arrange again cannot help
+        var parkedCopy = p.rule === 'off_plate' && S.layoutNotes.length && PL.bbox(PL.worldHull(copyById(p.copies[0]))).minX > PLATE.x;
+        var acts = p.rule === 'too_tall' ? [['Auto-orient', function (e) { e.stopPropagation(); S.selected = p.copies.slice(); autoOrient(p.copies); }]]
+                 : parkedCopy ? [['Back to Parts', function (e) { e.stopPropagation(); gotoStep('parts'); }]]
+                 : [['Arrange', function (e) { e.stopPropagation(); doArrange(); }]];
+        var m = msg('error', p.message.split('. ')[0] + '.', parkedCopy ? 'It did not fit: lower its quantity, or lay copies another way to make room.' : p.message.split('. ').slice(1).join('. '), acts);
         m.classList.add('clickable');
         m.addEventListener('click', function () { S.selected = p.copies.slice(); editor.resetHandle(); editor.sync(); renderLayoutSide(); });
         box.appendChild(m);
       });
     }
   }
-  function setLayMode(on) {
-    S.layMode = on;
-    var b = $('#btn-lay'); b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    $('#lay-banner').hidden = !on;
-    $('#layout-alert').hidden = on || !S.problems.length;
-    if (editor) editor.setLayMode(on);
+  // Under the selection: whether it lies as chosen automatically, and the one way back to
+  // how it was modelled.
+  function renderOrientLine(sel) {
+    var box = $('#layout-orient'); box.innerHTML = '';
+    var same = sel.length && sel.every(function (c) { return c.partKey === sel[0].partKey; });
+    box.hidden = !same;
+    if (!same) return;
+    var modelled = sel.every(function (c) { return P.isModelled(c.q); }), auto = sel.every(function (c) { return c.auto; });
+    var best = P.resting(sel[0].partKey).list[0];
+    function link(t, fn) { var b = el('button', 'linkish', t); b.type = 'button'; b.addEventListener('click', fn); box.appendChild(b); }
+    if (auto && !modelled) {
+      box.appendChild(el('span', 'auto-chip', 'Laid down automatically'));
+      link('Put back as modelled', function () { layCopies(sel, function () { return P.resting(sel[0].partKey).modelled; }, 'modelled'); });
+    } else if (!modelled) {
+      box.appendChild(document.createTextNode('Laid down by you. '));
+      link('Put back as modelled', function () { layCopies(sel, function () { return P.resting(sel[0].partKey).modelled; }, 'modelled'); });
+    } else if (best && !best.modelled) {
+      box.appendChild(document.createTextNode('As modelled. '));
+      link('Lay it the best way', function () { autoOrient(sel.map(function (c) { return c.id; })); });
+    } else box.appendChild(document.createTextNode('As modelled, which is already its best way.'));
+  }
+  // The resting-position strip: under the view, while the selection is copies of one part,
+  // a picture of each way that part can lie, the auto-orient choice first and marked Best,
+  // the way it lies now outlined. A click lays every selected copy that way.
+  function renderStrip(sel) {
+    var box = $('#rest-strip'); box.innerHTML = '';
+    box.hidden = Opt.lay !== 'strip' || !sel.length;
+    if (box.hidden) return;
+    var key = sel[0].partKey;
+    if (sel.some(function (c) { return c.partKey !== key; })) { box.appendChild(el('div', 'hint', 'Select copies of one part to choose how they lie.')); return; }
+    var R = P.resting(key), cur = P.restIndex(key, sel[0].q);
+    if (sel.some(function (c) { return P.restIndex(key, c.q) !== cur; })) cur = -2;
+    var nWays = R.list.length + (R.modelledListed ? 0 : 1);
+    box.appendChild(el('div', 'rs-head', nWays === 1 ? 'It can lie flat only this way.' : 'The ' + nWays + ' ways ' + (sel.length > 1 ? 'they' : 'it') + ' can lie. Click one to lay ' + (sel.length > 1 ? 'them' : 'it') + ' that way:'));
+    var row = el('div', 'rs-row');
+    var items = R.list.map(function (c, i) { return { cand: c, i: i }; });
+    if (!R.modelledListed) items.push({ cand: R.modelled, i: 'm' });
+    items.forEach(function (it) {
+      var c = it.cand, on = it.i === 'm' ? cur === -1 && P.isModelled(sel[0].q) : it.i === cur;
+      var b = el('button', 'rs-item' + (on ? ' on' : '')); b.type = 'button';
+      var img = el('img'); img.alt = ''; img.src = restThumb(key, it.i, c.q); b.appendChild(img);
+      if (it.i === 0) b.appendChild(el('span', 'rs-best', 'Best'));
+      var tall = c.height > PLATE.height;
+      b.appendChild(el('span', 'rs-line', Math.round(c.height) + ' mm tall'));
+      if (it.i === 'm') b.appendChild(el('span', 'rs-line', 'as modelled'));
+      if (tall) b.appendChild(el('span', 'rs-line bad', 'too tall'));
+      else if (c.supports) b.appendChild(el('span', 'rs-line warn', 'overhangs'));
+      b.title = (it.i === 0 ? 'The best way, chosen automatically: ' : it.i === 'm' ? 'As modelled: ' : '') + Math.round(c.height) + ' mm tall, ' + Math.round(c.contact) + ' mm² on the plate' + (c.overhang > 1 ? ', ' + Math.round(c.overhang) + ' mm² over air' : '') + (c.supports ? '. Much of it hangs over air, so it will probably need Supports.' : '');
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.addEventListener('click', function () { layCopies(sel, function () { return c; }, it.i === 0 ? 'auto' : it.i === 'm' ? 'modelled' : 'pick'); });
+      row.appendChild(b);
+    });
+    box.appendChild(row);
+  }
+  // One line under the view: the gestures of the mouse scheme and of the way to lay a copy
+  // down, chosen in the scenario strip, so a student need not be told.
+  var GESTURES = {
+    O: 'Drag a copy to move it, its round handle to turn it. Right-drag to look around, Shift-drag to slide, scroll to zoom.',
+    S: 'Drag a copy to move it, its round handle to turn it. Drag empty space to look around, right-drag to slide, scroll to zoom.',
+    T: 'Seen from above. Drag a copy to move it, its round handle to turn it. Drag empty space to slide, scroll to zoom, right-drag or 3D to tilt.'
+  };
+  var LAY_GESTURE = {
+    strip: 'Select a copy to see pictures of the ways it can lie; click one to lay it that way.',
+    markers: 'Select a copy, then click an arrow (↓) on one of its faces to lay it on that face.',
+    box: 'Select a copy, then click a side of the box around it to put that side down, or drag the box to roll it.',
+    tip: 'Select a copy, then click ⤵ beside its round handle to tip it onto its next side.'
+  };
+  var MORE = {
+    O: ['Left-drag on empty plate also looks around; middle-drag, Ctrl + right-drag or Shift-drag slides the view.'],
+    S: ['Shift-drag also slides the view.'],
+    T: ['Middle-drag also slides; Top puts the view back above the plate.']
+  };
+  function renderGestures() {
+    $('#layout-gestures').textContent = GESTURES[Opt.scheme] + ' ' + LAY_GESTURE[Opt.lay];
+    var ul = $('#layout-more'); ul.innerHTML = '';
+    MORE[Opt.scheme].concat([
+      'Shift- or Ctrl-click adds a copy to the selection; drag one to move them all.',
+      'The handle snaps every 45 degrees.',
+      'Double-click a flat face to lay the copy down on it.',
+      'F zooms to the copies; Ctrl+1 looks from above.',
+      'Ctrl+Z undoes, Ctrl+Y or Ctrl+Shift+Z redoes, Ctrl+D duplicates, Delete removes, Ctrl+A selects every copy, Escape clears.'
+    ]).forEach(function (t) { ul.appendChild(el('li', null, t)); });
   }
   function doArrange() {
-    var parked = PL.arrange(S.copies, PLATE);
-    S.layoutNotes = parked ? [msg('error', ONE_PLATE_MESSAGE.split(';')[0] + ': ' + parked + ' cop' + (parked > 1 ? 'ies wait' : 'y waits') + ' beside it.', 'Lower the quantities and print the rest in a second job.', [['Back to Parts', function () { gotoStep('parts'); }]])] : [];
-    layHint = null; recheck(); editor.resetHandle(); editor.sync(); editor.resetView(); scheduleLayoutRender();
+    pushUndo();
+    var res = PL.bestArrange(S.copies, PLATE);
+    S.layoutNotes = arrangeNote(res, tryBestWay(res));
+    layHint = res.parked ? null : msg('ok', 'Arranged ' + plural(res.placed, 'copy', 'copies') + (res.turned ? ', turning ' + res.turned : '') + '.', null);
+    recheck(); editor.resetHandle(); editor.sync(); editor.resetView(); scheduleLayoutRender();
   }
   function deleteSelected() {
+    if (!S.selected.length) return;
+    pushUndo();
     var notes = [];
     S.selected.slice().forEach(function (id) {
       var c = copyById(id); if (!c) return;
@@ -727,20 +1041,14 @@
     layHint = notes.length ? msg('info', 'Deleted the last copy of ' + notes.join(' and ') + ', so the Parts step no longer lists ' + (notes.length > 1 ? 'them' : 'it') + '.', null) : null;
     recheck(); scheduleLayoutRender(); updateSummary();
   }
-  function bindLayout() {
-    $('#btn-arrange').addEventListener('click', doArrange);
-    $('#btn-lay').addEventListener('click', function () { setLayMode(!S.layMode); });
-    $('#btn-lay-done').addEventListener('click', function () { setLayMode(false); });
-    $('#btn-view').addEventListener('click', function () { editor && editor.resetView(); });
-    $('#btn-view-plate').addEventListener('click', function () { editor && editor.viewPlate(); });
-    $('#layout-alert').addEventListener('click', function () { $('#layout-errors').scrollIntoView({ block: 'start', behavior: 'smooth' }); });
-    $('#btn-del').addEventListener('click', deleteSelected);
-    $('#btn-dup').addEventListener('click', function () {
+  function duplicateSelected() {
       var made = [];
+      if (!S.selected.length) return;
       if (S.copies.length + S.selected.length > MAX_COPIES) { layHint = msg('error', 'Cannot duplicate: the plate would hold ' + (S.copies.length + S.selected.length) + ' copies.', TOO_MANY_COPIES_MESSAGE); renderLayoutSide(); return; }
+      pushUndo();
       S.selected.forEach(function (id) {
         var c = copyById(id), p = partById(c.partId), n = newCopy(p);
-        n.q = c.q.clone(); n.x = c.x; n.y = c.y;
+        n.q = c.q.clone(); n.x = c.x; n.y = c.y; n.auto = c.auto;
         // the duplicate lands in the free spot nearest its original
         if (!PL.placeNear(n, S.copies, PLATE, c.x, c.y)) PL.place(n, S.copies, PLATE);
         S.copies.push(n); p.qty++; made.push(n.id);
@@ -748,7 +1056,25 @@
       S.selected = made; layHint = null; recheck(); editor.resetHandle();
       if (made.some(function (id) { return !editor.inView(id); })) needRefit = true;      // keep the new copy in sight
       scheduleLayoutRender(); updateSummary();
-    });
+  }
+  function bindLayout() {
+    $('#btn-arrange').addEventListener('click', doArrange);
+    $('#btn-orient').addEventListener('click', function () { autoOrient(S.selected.slice()); });
+    $('#btn-undo').addEventListener('click', undo);
+    $('#btn-redo').addEventListener('click', redo);
+    $('#btn-view').addEventListener('click', function () { editor && editor.resetView(); });
+    $('#btn-view-plate').addEventListener('click', function () { editor && editor.viewPlate(); });
+    $('#btn-top').addEventListener('click', function () { editor && editor.topView(); });
+    $('#btn-tilt').addEventListener('click', function () { if (editor) $('#btn-tilt').textContent = editor.toggleTilt() ? 'Above' : '3D'; });
+    $('#layout-alert').addEventListener('click', function () { $('#layout-errors').scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+    $('#btn-del').addEventListener('click', deleteSelected);
+    $('#btn-dup').addEventListener('click', duplicateSelected);
+  }
+  function setOption(name, value) {
+    Opt[name] = value;
+    if (name === 'scheme') $('#btn-tilt').textContent = '3D';
+    if (editor) { if (name === 'scheme') editor.setScheme(value); if (name === 'lay') editor.setLayOption(value); }
+    if (S.step === 'layout') renderLayoutSide();
   }
 
   // put a copy at the candidate spot that causes the fewest problems besides the wanted one
@@ -769,9 +1095,23 @@
     var c0 = S.copies[0], d0, note = null;
     if (Mock.take('too_close')) {
       if (S.copies.length < 2) { var p = partById(c0.partId), n = newCopy(p); n.q = c0.q.clone(); S.copies.push(n); p.qty++; }
-      var c1 = S.copies[1]; d0 = PL.derive(c0); var d1 = PL.derive(c1);
-      var gx = d0.w / 2 + d1.w / 2 + 2, gy = d0.l / 2 + d1.l / 2 + 2;
-      bestSpot(c1, [[c0.x + gx, c0.y], [c0.x - gx, c0.y], [c0.x, c0.y + gy], [c0.x, c0.y - gy]], 'too_close');
+      // put one copy 2 mm from another: the pair and the side that break no other rule
+      var pick = null;
+      S.copies.forEach(function (a) {
+        S.copies.forEach(function (b) {
+          if (a === b) return;
+          var da = PL.derive(a), db = PL.derive(b), keep = [b.x, b.y];
+          var gx = da.w / 2 + db.w / 2 + 2, gy = da.l / 2 + db.l / 2 + 2;
+          [[a.x + gx, a.y], [a.x - gx, a.y], [a.x, a.y + gy], [a.x, a.y - gy]].forEach(function (s) {
+            b.x = s[0]; b.y = s[1];
+            var ps = PL.check(S.copies, PLATE, copyLabel), wanted = ps.filter(function (p) { return p.rule === 'too_close'; }).length;
+            var score = wanted ? ps.length - wanted : 99;
+            if (!pick || score < pick.score) pick = { score: score, b: b, s: s };
+          });
+          b.x = keep[0]; b.y = keep[1];
+        });
+      });
+      pick.b.x = pick.s[0]; pick.b.y = pick.s[1];
     }
     if (Mock.take('off_plate')) {
       var c = S.copies[S.copies.length - 1], d = PL.derive(c);
@@ -782,11 +1122,11 @@
       var rib = S.copies.filter(function (x) { return x.partKey === 'rib'; })[0];
       if (!rib) {
         var part = { id: 'p' + (S.nextId++), key: 'rib', name: P.byKey.rib.name, qty: 1, status: 'ready', warn: null, error: null };
-        S.parts.push(part); rib = newCopy(part); S.copies.push(rib);
+        S.parts.push(part); rib = newCopy(part); rib.q = new T.Quaternion(); rib.auto = false; S.copies.push(rib);
         var ribOthers = S.copies.filter(function (x) { return x !== rib; }), ribMid = PL.centre(ribOthers, PLATE);
         if (!PL.placeNear(rib, ribOthers, PLATE, ribMid[0], ribMid[1])) PL.place(rib, ribOthers, PLATE);
         note = msg('info', 'Mockup: added a ' + part.name + ' standing up, to show the height rule.', null);
-      } else { rib.q = new T.Quaternion(); rib.d = null; }
+      } else { rib.q = new T.Quaternion(); rib.d = null; rib.auto = false; note = msg('info', 'Mockup: stood ' + copyLabel(rib) + ' up as modelled, to show the height rule.', null); }
     }
     if (note) layHint = note;
     recheck();
@@ -998,15 +1338,41 @@
     });
     stats.appendChild(el('div', 'stat-line', r.copies.length + ' cop' + (r.copies.length === 1 ? 'y' : 'ies') + ' · ' + r.tp.layers + ' layers of ' + r.settings.layer_height + ' mm · sliced in ' + clock(r.sliceTime)));
     if (!viewer) viewer = Preview3D.createViewer($('#viewer-container'), PLATE);
-    setTimeout(function () { viewer.resize(); viewer.show(r.tp, r.copies); setLayer(r.tp.layers - 1); }, 0);
-    var lg = $('#legend'); lg.innerHTML = '';
-    Preview3D.TYPES.forEach(function (ty) {
-      if (!r.tp.acc[ty.id].pos.length) return;
-      var li = el('li'); var sw = el('i'); sw.style.background = '#' + ('00000' + ty.color.toString(16)).slice(-6); li.appendChild(sw);
-      li.appendChild(document.createTextNode(ty.label)); lg.appendChild(li);
-    });
+    setTimeout(function () {
+      viewer.resize(); viewer.show(r.tp, r.copies);
+      Object.keys(S.hiddenTypes).forEach(function (k) { if (S.hiddenTypes[k]) viewer.setVisible(k, false); });
+      setLayer(r.tp.layers - 1);
+    }, 0);
+    renderLegend(r);
     renderPrint();
     updateNext();
+  }
+  // The legend, as Orca's for line types: each type's share of the print time, and a click
+  // on a row hides that type in the layer preview (and shows it again).
+  function renderLegend(r) {
+    var lg = $('#legend'); lg.innerHTML = '';
+    var total = r.est.seconds;
+    function short(s) { return s < 60 ? '<1 min' : hm(s); }
+    function pct(s) { var p = s / total * 100; return p < 1 ? '<1%' : Math.round(p) + '%'; }
+    Preview3D.TYPES.forEach(function (ty) {
+      if (!r.tp.acc[ty.id].pos.length) return;
+      var off = !!S.hiddenTypes[ty.id], secs = r.est.byType[ty.id] || 0;
+      var li = el('li', 'lg-row' + (off ? ' off' : '')); li.setAttribute('role', 'button'); li.tabIndex = 0;
+      li.setAttribute('aria-pressed', off ? 'false' : 'true');
+      li.title = (off ? 'Show ' : 'Hide ') + ty.label.toLowerCase() + ' in the layer preview';
+      var sw = el('i'); sw.style.background = '#' + ('00000' + ty.color.toString(16)).slice(-6); li.appendChild(sw);
+      li.appendChild(el('span', 'lg-name', ty.label));
+      li.appendChild(el('span', 'lg-time', short(secs)));
+      li.appendChild(el('span', 'lg-pct', pct(secs)));
+      function flip() { S.hiddenTypes[ty.id] = !S.hiddenTypes[ty.id]; if (viewer) viewer.setVisible(ty.id, !S.hiddenTypes[ty.id]); renderLegend(r); }
+      li.addEventListener('click', flip);
+      li.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
+      lg.appendChild(li);
+    });
+    var other = el('li', 'lg-row fixed');
+    other.appendChild(el('i', 'none')); other.appendChild(el('span', 'lg-name', 'Heating, travel, layer changes'));
+    other.appendChild(el('span', 'lg-time', short(r.est.overhead))); other.appendChild(el('span', 'lg-pct', pct(r.est.overhead)));
+    lg.appendChild(other);
   }
   function setLayer(k) {
     var r = S.result; if (!r) return;
@@ -1240,7 +1606,7 @@
     partsNote = null; layHint = null;
     $('#advanced').hidden = true;
     $('#print-card').hidden = true;
-    setLayMode(false);
+    pendingSnap = null;
     if (editor) editor.sync();
     if (viewer) viewer.clear();
     clearPreview();
@@ -1250,7 +1616,7 @@
   bindNav(); bindSetup(); bindAdvanced(); bindParts(); bindLayout(); bindPreview();
 
   window.Wizard = {
-    Mock: Mock, reset: reset, onOnshapeSelect: onOnshapeSelect,
+    Mock: Mock, reset: reset, onOnshapeSelect: onOnshapeSelect, setOption: setOption,
     armed: function () { if (S.step === 'layout') applyLayoutArms(); },
     state: function () { return S; },
     step: function () { return S.step; },

@@ -28,7 +28,7 @@
     { key: 'seam_position', group: 'Quality', sub: 'Seam', label: 'Seam position', type: 'sel', options: opt([['nearest', 'Nearest'], ['aligned', 'Aligned'], ['back', 'Back'], ['random', 'Random']]) },
     { key: 'resolution', group: 'Quality', sub: 'Precision', label: 'Resolution', type: 'num', unit: 'mm', min: 0.001, max: 0.1, step: 0.001 },
     { key: 'enable_arc_fitting', group: 'Quality', sub: 'Precision', label: 'Arc fitting', type: 'bool' },
-    { key: 'xy_hole_compensation', group: 'Quality', sub: 'Precision', label: 'X-Y hole compensation', type: 'num', unit: 'mm', min: -1, max: 1, step: 0.01 },
+    { key: 'xy_hole_compensation', group: 'Quality', sub: 'Precision', label: 'Hole compensation', type: 'num', unit: 'mm', min: -1, max: 1, step: 0.01 },
     { key: 'elefant_foot_compensation', group: 'Quality', sub: 'Precision', label: 'Elephant foot compensation', type: 'num', unit: 'mm', min: 0, max: 1, step: 0.01 },
     { key: 'ironing_type', group: 'Quality', sub: 'Ironing', label: 'Ironing type', type: 'sel', options: opt([['no ironing', 'No ironing'], ['top', 'Top surfaces'], ['topmost', 'Topmost surface'], ['solid', 'All solid layer']]) },
     { key: 'only_one_wall_top', group: 'Quality', sub: 'Advanced', label: 'Only one wall on top surfaces', type: 'bool' },
@@ -65,11 +65,11 @@
     { key: 'support_on_build_plate_only', group: 'Support', sub: 'Support', label: 'On build plate only', type: 'bool' },
     { key: 'support_remove_small_overhang', group: 'Support', sub: 'Support', label: 'Remove small overhangs', type: 'bool' },
     { key: 'raft_layers', group: 'Support', sub: 'Raft', label: 'Raft layers', type: 'num', unit: 'layers', min: 0, max: 20, step: 1 },
-    { key: 'support_top_z_distance', group: 'Support', sub: 'Support filament', label: 'Top Z distance', type: 'num', unit: 'mm', min: 0, max: 1, step: 0.01 },
+    { key: 'support_top_z_distance', group: 'Support', sub: 'Support filament', label: 'Gap above support', type: 'num', unit: 'mm', min: 0, max: 1, step: 0.01 },
     { key: 'support_base_pattern', group: 'Support', sub: 'Advanced', label: 'Base pattern', type: 'sel', options: opt([['default', 'Default'], ['rectilinear', 'Rectilinear'], ['rectilinear-grid', 'Rectilinear grid'], ['honeycomb', 'Honeycomb'], ['lightning', 'Lightning'], ['hollow', 'Hollow']]) },
     { key: 'support_base_pattern_spacing', group: 'Support', sub: 'Advanced', label: 'Base pattern spacing', type: 'num', unit: 'mm', min: 0.5, max: 10, step: 0.1 },
     { key: 'support_interface_top_layers', group: 'Support', sub: 'Advanced', label: 'Top interface layers', type: 'num', unit: 'layers', min: 0, max: 10, step: 1 },
-    { key: 'support_object_xy_distance', group: 'Support', sub: 'Advanced', label: 'Support/object xy distance', type: 'num', unit: 'mm', min: 0, max: 5, step: 0.01 },
+    { key: 'support_object_xy_distance', group: 'Support', sub: 'Advanced', label: 'Support/object side gap', type: 'num', unit: 'mm', min: 0, max: 5, step: 0.01 },
     // ---------------- Others
     { key: 'skirt_loops', group: 'Others', sub: 'Skirt', label: 'Skirt loops', type: 'num', unit: '', min: 0, max: 10, step: 1 },
     { key: 'skirt_distance', group: 'Others', sub: 'Skirt', label: 'Skirt distance', type: 'num', unit: 'mm', min: 0, max: 20, step: 0.5 },
@@ -83,7 +83,63 @@
     { key: 'reduce_infill_retraction', group: 'Others', sub: 'Advanced', label: 'Reduce infill retraction', type: 'bool' },
     { key: 'gcode_label_objects', group: 'Others', sub: 'G-code output', label: 'Label objects', type: 'bool' }
   ];
+  // The rest, shown when advanced mode's switch says "All settings" (more: true). Still a
+  // sample: Orca's tabs hold about 105, 50, 42, 50 and 48 settings (research 2026-11-19, A).
+  function more(list) { list.forEach(function (s) { s.more = true; SETTINGS.push(s); }); }
+  more([
+    { key: 'initial_layer_line_width', group: 'Quality', sub: 'Line width', label: 'First layer', type: 'num', unit: 'mm', min: 0.4, max: 1.2, step: 0.01 },
+    { key: 'inner_wall_line_width', group: 'Quality', sub: 'Line width', label: 'Inner wall', type: 'num', unit: 'mm', min: 0.4, max: 1.0, step: 0.01 },
+    { key: 'sparse_infill_line_width', group: 'Quality', sub: 'Line width', label: 'Sparse infill', type: 'num', unit: 'mm', min: 0.4, max: 1.0, step: 0.01 },
+    { key: 'top_surface_line_width', group: 'Quality', sub: 'Line width', label: 'Top surface', type: 'num', unit: 'mm', min: 0.4, max: 1.0, step: 0.01 },
+    { key: 'seam_gap', group: 'Quality', sub: 'Seam', label: 'Seam gap', type: 'num', unit: '%', min: 0, max: 100, step: 1 },
+    { key: 'slice_closing_radius', group: 'Quality', sub: 'Precision', label: 'Slice gap closing radius', type: 'num', unit: 'mm', min: 0, max: 1, step: 0.001 },
+    { key: 'ironing_flow', group: 'Quality', sub: 'Ironing', label: 'Ironing flow', type: 'num', unit: '%', min: 0, max: 100, step: 1 },
+    { key: 'ironing_spacing', group: 'Quality', sub: 'Ironing', label: 'Ironing line spacing', type: 'num', unit: 'mm', min: 0.05, max: 1, step: 0.01 },
+    { key: 'ironing_speed', group: 'Quality', sub: 'Ironing', label: 'Ironing speed', type: 'num', unit: 'mm/s', min: 5, max: 200, step: 5 },
+    { key: 'wall_generator', group: 'Quality', sub: 'Wall generator', label: 'Wall generator', type: 'sel', options: opt([['classic', 'Classic'], ['arachne', 'Arachne']]) },
+    { key: 'wall_sequence', group: 'Quality', sub: 'Walls and surfaces', label: 'Walls printing order', type: 'sel', options: opt([['inner wall/outer wall', 'Inner/Outer'], ['outer wall/inner wall', 'Outer/Inner'], ['inner-outer-inner wall', 'Inner/Outer/Inner']]) },
+    { key: 'thick_bridges', group: 'Quality', sub: 'Bridging', label: 'Thick bridges', type: 'bool' },
+    { key: 'bridge_flow', group: 'Quality', sub: 'Bridging', label: 'Bridge flow ratio', type: 'num', unit: '', min: 0.5, max: 2, step: 0.05 },
+    { key: 'bottom_shell_thickness', group: 'Strength', sub: 'Top/bottom shells', label: 'Bottom shell thickness', type: 'num', unit: 'mm', min: 0, max: 5, step: 0.1 },
+    { key: 'bottom_surface_pattern', group: 'Strength', sub: 'Top/bottom shells', label: 'Bottom surface pattern', type: 'sel', options: opt([['monotonic', 'Monotonic'], ['zig-zag', 'Rectilinear'], ['concentric', 'Concentric']]) },
+    { key: 'infill_direction', group: 'Strength', sub: 'Infill', label: 'Sparse infill direction', type: 'num', unit: '°', min: 0, max: 360, step: 1 },
+    { key: 'infill_combination', group: 'Strength', sub: 'Infill', label: 'Infill combination', type: 'bool' },
+    { key: 'minimum_sparse_infill_area', group: 'Strength', sub: 'Infill', label: 'Minimum sparse infill threshold', type: 'num', unit: 'mm²', min: 0, max: 100, step: 1 },
+    { key: 'detect_overhang_wall', group: 'Strength', sub: 'Walls', label: 'Detect overhang wall', type: 'bool' },
+    { key: 'small_perimeter_speed', group: 'Speed', sub: 'Other layers speed', label: 'Small perimeters', type: 'num', unit: '%', min: 10, max: 100, step: 5 },
+    { key: 'bridge_speed', group: 'Speed', sub: 'Other layers speed', label: 'Bridge', type: 'num', unit: 'mm/s', min: 5, max: 300, step: 5 },
+    { key: 'enable_overhang_speed', group: 'Speed', sub: 'Overhang speed', label: 'Slow down for overhangs', type: 'bool' },
+    { key: 'outer_wall_acceleration', group: 'Speed', sub: 'Acceleration', label: 'Outer wall', type: 'num', unit: 'mm/s²', min: 500, max: 20000, step: 500 },
+    { key: 'inner_wall_acceleration', group: 'Speed', sub: 'Acceleration', label: 'Inner wall', type: 'num', unit: 'mm/s²', min: 500, max: 20000, step: 500 },
+    { key: 'travel_acceleration', group: 'Speed', sub: 'Acceleration', label: 'Travel', type: 'num', unit: 'mm/s²', min: 500, max: 20000, step: 500 },
+    { key: 'initial_layer_acceleration', group: 'Speed', sub: 'Acceleration', label: 'Initial layer', type: 'num', unit: 'mm/s²', min: 100, max: 10000, step: 100 },
+    { key: 'default_jerk', group: 'Speed', sub: 'Jerk', label: 'Default', type: 'num', unit: 'mm/s', min: 0, max: 30, step: 1 },
+    { key: 'support_interface_bottom_layers', group: 'Support', sub: 'Advanced', label: 'Bottom interface layers', type: 'num', unit: 'layers', min: 0, max: 10, step: 1 },
+    { key: 'support_interface_pattern', group: 'Support', sub: 'Advanced', label: 'Interface pattern', type: 'sel', options: opt([['auto', 'Default'], ['rectilinear', 'Rectilinear'], ['concentric', 'Concentric'], ['rectilinear_interlaced', 'Rectilinear Interlaced'], ['grid', 'Grid']]) },
+    { key: 'support_interface_spacing', group: 'Support', sub: 'Advanced', label: 'Top interface spacing', type: 'num', unit: 'mm', min: 0, max: 5, step: 0.1 },
+    { key: 'support_bottom_z_distance', group: 'Support', sub: 'Support filament', label: 'Gap below support', type: 'num', unit: 'mm', min: 0, max: 1, step: 0.01 },
+    { key: 'support_critical_regions_only', group: 'Support', sub: 'Support', label: 'Support critical regions only', type: 'bool' },
+    { key: 'tree_support_branch_angle', group: 'Support', sub: 'Tree supports', label: 'Branch angle', type: 'num', unit: '°', min: 0, max: 60, step: 1 },
+    { key: 'tree_support_branch_distance', group: 'Support', sub: 'Tree supports', label: 'Branch distance', type: 'num', unit: 'mm', min: 1, max: 10, step: 0.5 },
+    { key: 'tree_support_wall_count', group: 'Support', sub: 'Tree supports', label: 'Support wall loops', type: 'num', unit: '', min: 0, max: 4, step: 1 },
+    { key: 'skirt_height', group: 'Others', sub: 'Skirt', label: 'Skirt height', type: 'num', unit: 'layers', min: 1, max: 20, step: 1 },
+    { key: 'draft_shield', group: 'Others', sub: 'Skirt', label: 'Draft shield', type: 'sel', options: opt([['disabled', 'Disabled'], ['enabled', 'Enabled']]) },
+    { key: 'timelapse_type', group: 'Others', sub: 'Special mode', label: 'Timelapse', type: 'sel', options: opt([['0', 'Traditional'], ['1', 'Smooth']]) },
+    { key: 'exclude_object', group: 'Others', sub: 'G-code output', label: 'Exclude objects', type: 'bool' },
+    { key: 'gcode_comments', group: 'Others', sub: 'G-code output', label: 'Verbose G-code', type: 'bool' },
+    { key: 'reduce_crossing_wall', group: 'Others', sub: 'Advanced', label: 'Avoid crossing walls', type: 'bool' },
+    { key: 'max_travel_detour_distance', group: 'Others', sub: 'Advanced', label: 'Avoid crossing walls: max detour', type: 'num', unit: 'mm', min: 0, max: 100, step: 1 }
+  ]);
+  // keep each tab's settings together and in Orca's subgroup order: a stable sort by tab
   var GROUPS = ['Quality', 'Strength', 'Speed', 'Support', 'Others'];
+  (function () {
+    var subOrder = {};
+    SETTINGS.forEach(function (s, i) { var k = s.group + '|' + s.sub; if (!(k in subOrder)) subOrder[k] = i; s._i = i; });
+    SETTINGS.sort(function (a, b) {
+      return GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group) || subOrder[a.group + '|' + a.sub] - subOrder[b.group + '|' + b.sub] || a._i - b._i;
+    });
+  })();
+  var ORCA_COUNT = { Quality: 105, Strength: 50, Speed: 42, Support: 50, Others: 48 };
 
   var BASE = {
     layer_height: 0.3, initial_layer_print_height: 0.3, line_width: 0.62, outer_wall_line_width: 0.62,
@@ -101,7 +157,20 @@
     support_object_xy_distance: 0.35,
     skirt_loops: 0, skirt_distance: 2, brim_type: 'auto_brim', brim_width: 5, brim_object_gap: 0.1,
     print_sequence: 'by layer', spiral_mode: false, slicing_mode: 'regular', fuzzy_skin: 'none',
-    reduce_infill_retraction: true, gcode_label_objects: true
+    reduce_infill_retraction: true, gcode_label_objects: true,
+    // All settings only
+    initial_layer_line_width: 0.75, inner_wall_line_width: 0.62, sparse_infill_line_width: 0.62, top_surface_line_width: 0.62,
+    seam_gap: 10, slice_closing_radius: 0.049, ironing_flow: 10, ironing_spacing: 0.15, ironing_speed: 30,
+    wall_generator: 'classic', wall_sequence: 'inner wall/outer wall', thick_bridges: false, bridge_flow: 1,
+    bottom_shell_thickness: 0, bottom_surface_pattern: 'monotonic', infill_direction: 45, infill_combination: false,
+    minimum_sparse_infill_area: 15, detect_overhang_wall: true,
+    small_perimeter_speed: 50, bridge_speed: 50, enable_overhang_speed: true, outer_wall_acceleration: 5000,
+    inner_wall_acceleration: 10000, travel_acceleration: 10000, initial_layer_acceleration: 500, default_jerk: 9,
+    support_interface_bottom_layers: 0, support_interface_pattern: 'auto', support_interface_spacing: 0.5,
+    support_bottom_z_distance: 0.24, support_critical_regions_only: false, tree_support_branch_angle: 45,
+    tree_support_branch_distance: 5, tree_support_wall_count: 0,
+    skirt_height: 1, draft_shield: 'disabled', timelapse_type: '0', exclude_object: true, gcode_comments: false,
+    reduce_crossing_wall: false, max_travel_detour_distance: 0
   };
   function profile(id, name, about, over) {
     var v = {}; Object.keys(BASE).forEach(function (k) { v[k] = BASE[k]; });
@@ -133,5 +202,5 @@
   }
 
   window.MockSettings = { PRINTER: PRINTER, FILAMENTS: FILAMENTS, SETTINGS: SETTINGS, GROUPS: GROUPS, PROFILES: PROFILES,
-                          QUICK: QUICK, byKey: byKey, formatValue: formatValue };
+                          QUICK: QUICK, byKey: byKey, formatValue: formatValue, ORCA_COUNT: ORCA_COUNT };
 })();

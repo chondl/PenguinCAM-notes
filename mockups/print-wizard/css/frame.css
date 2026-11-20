@@ -58,7 +58,10 @@ button, select { font: inherit; }
 #os-graphics { flex: 1; min-width: 0; position: relative; background: linear-gradient(#fdfdfe, #dfe3e8); }
 #os-graphics canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #os-graphics-note { position: absolute; left: 12px; top: 10px; color: var(--f-muted); font-size: 12px; pointer-events: none; z-index: 1; }
-#os-right { width: var(--panel-width); flex: none; background: #fff; border-left: 1px solid var(--f-line); display: flex; flex-direction: column; min-height: 0; }
+#os-right { width: var(--panel-width); flex: none; background: #fff; border-left: 1px solid var(--f-line); display: flex; flex-direction: column; min-height: 0; position: relative; }
+#os-right-grip { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: ew-resize; z-index: 20; }
+#os-right-grip:hover, #os-right-grip.on { background: rgba(13, 106, 193, 0.35); }
+#scenario .sc-group { font-weight: 700; }
 #os-right-head { height: 30px; flex: none; display: flex; align-items: center; padding: 0 10px; border-bottom: 1px solid var(--f-line); font-weight: 600; }
 #panel-slot { flex: 1; min-height: 0; position: relative; }
 #os-strip { width: 36px; flex: none; background: #fff; border-left: 1px solid var(--f-line); display: flex; flex-direction: column; align-items: center; padding-top: 6px; }
