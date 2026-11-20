@@ -411,3 +411,22 @@ part on a face; learn from Orca Slicer's layout and preview views); and for the 
   non-final stage, not a failure at 60 seconds.
 - Thu 11-19 23:23 PT: delivery hardening fix 4 and the wizard research dispatched (both Opus). Status
   cron `860432fc`.
+- Thu 11-19 23:36 PT: owner, before bed, narrowed the research: advanced mode must stay in the same
+  browser tab (no separate window or tab); lay-on-face options to include another handle
+  and a bounding box with draggable corners, one recommended and the others presented;
+  and the Layout step's operations (move, turn, lay on face, zoom, orbit, pan and the
+  rest) considered together as one scheme. All three sent to the research agent.
+- Thu 11-19 23:36 PT: wizard research returned, DONE_WITH_CONCERNS
+  ([research file](../../research/2026-11-19-wizard-layout-and-advanced-mode-research.md)).
+  A: Onshape gives a right-panel application no dialog and no resize message; recommend a
+  full-height view in the panel built like Orca's settings column, wider when the panel
+  is dragged wider (the dragging is inferred, not confirmed). B: write our own small
+  orientation score (Orca's is AGPL, Tweaker-3 GPL, PenguinCAM MIT); 100,000 triangles in
+  about 110 ms in node; the rib comes out flat, 8 mm tall instead of 353 mm. C: run two
+  packers and keep the better; fails on curved parts' convex hulls. D: every slicer uses
+  a mode for lay-on-face; five options compared, recommending a strip of pictures of each
+  way the part can lie; three complete interaction schemes, recommending Onshape's mouse
+  mapping (the mockup's current mapping is the opposite).
+- Thu 11-19 23:36 PT: mockup round 3 dispatched (Opus): the recommended scheme as default, with the
+  other lay-on-face options and mouse schemes selectable from the scenario strip so the
+  owner can compare them.
