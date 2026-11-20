@@ -438,3 +438,16 @@ part on a face; learn from Orca Slicer's layout and preview views); and for the 
   the rotation ball. Least sure: Arrange does not choose how copies lie; the "needs
   supports" threshold is invented; the red problem bar can cover the rotation handle.
 - Fri 11-20 00:11 PT: Fable round on mockup round 3 dispatched.
+- Fri 11-20 00:25 PT: delivery hardening fix 4 returned: all 6 defects reported fixed
+  ([results/delivery-hardening-fix-4.md](results/delivery-hardening-fix-4.md));
+  unverified. The guide has "How a start is decided" with six named time limits; a
+  document with no main state never counts as free; an end counts only after the print
+  was seen going, or after a state change and 2 minutes; every wait sits before the start
+  gate; after a start command the printer is held until evidence settles it; a slow
+  printer gets the non-final stage `start_not_shown`. New commands `python -m simulator`
+  and `python -m together.relay_server`, and a "Try it on one machine" walk. 1,064 fast
+  tests, 40 of 40 runs (3.8 to 5.0 s); simulator suite 10 of 10; upstream check 5 of 5.
+  Stated limits: a printer slower than 5 minutes to show a print is treated as not
+  having started it; all six time limits are guesses until the H2S is timed.
+- Fri 11-20 00:25 PT: delivery hardening review round 5 dispatched (Fable), result
+  `results/delivery-hardening-review-5.md`.
