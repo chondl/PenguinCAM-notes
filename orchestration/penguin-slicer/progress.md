@@ -173,3 +173,17 @@ the coordinator saves the substance to `results/<component>-port.md`.
   (a proposed Orca patch is written, not made); self-intersecting parts are not detected.
 - Thu 11-19 19:27 PT: slice hardening review round 1 dispatched (Fable), result
   `results/slice-hardening-review-1.md`.
+- Thu 11-19 19:37 PT: delivery hardening returned, DONE_WITH_CONCERNS
+  ([results/delivery-hardening.md](results/delivery-hardening.md)); unverified. Claims:
+  all nine requirements built; both hardware-test faults fixed; 36 error codes, six
+  stages with a `stale` marker, an event stream, a start gate so a file starts at most
+  once; daemon runs with `python -m` from one `--home` directory and has a `record`
+  command; simulated printer in `delivery/simulator/`; `make test-sim`,
+  `make test-upstream`, `make upgrade-printer-library` (run to 2.6.5 and back). 829 fast
+  tests in 5.4 s, 20 of 20 runs; simulator suite 18 tests in 23 s. The simulated printer
+  found a deadlock in the daemon's handling of the library's log (fixed) and an upload
+  losing the end of its file under TLS 1.3 (open, on the H2S checklist). Not handled: the
+  library accepts any printer certificate; no test holds a real socket stalled
+  mid-upload. Decided by the builder: a relay restart keeps only the secret key.
+- Thu 11-19 19:37 PT: delivery hardening review round 1 dispatched (Fable), result
+  `results/delivery-hardening-review-1.md`.
