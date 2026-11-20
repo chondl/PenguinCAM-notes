@@ -149,3 +149,14 @@ the coordinator saves the substance to `results/<component>-port.md`.
   first item of the hardening dispatch. The delivery port is committed as `7e1e2e1`.
   **Delivery port phase closed after 2 review rounds.**
 - Thu 11-19 18:31 PT: delivery hardening dispatched (Opus), result `results/delivery-hardening.md`.
+- Thu 11-19 18:38 PT: slice port review 2 returned: FIX, 2 small defects, neither loses work (every
+  negative Orca exit status reported as `slice.orca_killed`, so a crash reads as a kill;
+  a plate job file nested extremely deep gives `slice.unexpected`). All 14 earlier
+  defects confirmed fixed (30 of 30 fix-removal mutations caught, 17 others); 445 tests,
+  29 of 29 runs, 100% branch coverage; real Orca 10 passed
+  ([results/slice-port-review-2.md](results/slice-port-review-2.md)).
+- Ruling: both defects are hardening's first items (the hardening brief already requires
+  a kill for memory to be distinct from a crash). The slice port is committed as
+  `c2c9a3c`. **Slice port phase closed after 2 review rounds.**
+- Thu 11-19 18:38 PT: slice hardening dispatched (Opus), result `results/slice-hardening.md`. It is
+  the only strand allowed to run real Orca.
