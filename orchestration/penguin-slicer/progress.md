@@ -356,3 +356,34 @@ the coordinator saves the substance to `results/<component>-port.md`.
 - Thu 11-19 22:09 PT: delivery hardening review round 4, the last, dispatched (Fable), result
   `results/delivery-hardening-review-4.md`, to end with "Open at commit" and "For the
   session at the real printer".
+- Thu 11-19 22:24 PT: delivery hardening review 4, the last, returned: fit to commit as hardened,
+  6 defects carried to the owner
+  ([results/delivery-hardening-review-4.md](results/delivery-hardening-review-4.md),
+  sections "Open at commit" and "For the session at the real printer", 19 checklist
+  lines). Fast suite 40 of 40 (about 3 s), simulator suite 10 of 10, upstream check 5 of
+  5, 14 of 14 mutations caught. Open: a start command can go out on a partial printer
+  report that lacks the main state; a print can be reported done or failed in its first
+  seconds if the previous print's end state lingers; for up to 10 minutes after the start
+  is granted a job that has not started cannot be cancelled; a printer slower than 60 s
+  to show a print gives a false failure and a resend sends a second start command; the
+  guide has no by-hand walk of the chain; refused requests on job routes are not logged.
+- Thu 11-19 22:24 PT: delivery hardening committed as `81b5f4a`. **Printer delivery done after 4
+  review rounds. The run is finished;** the status cron is cancelled and nothing is
+  running. Agent notes for the repository are in its `CLAUDE.md`.
+
+## State at the end of the run
+
+Branch `build/ports-and-hardening` in `/repos/popcornpenguins/penguin-slicer`, local only:
+`7e1e2e1` delivery port, `c2c9a3c` slice port, `30401cf` slice hardening, `81b5f4a`
+delivery hardening, then the agent notes.
+
+Recommended next, for the owner to decide: one more fix and review round on printer
+delivery for its open items 1 to 4, which the cap of four rounds left open and which are
+not minor; then the owner's session at the H2S with the daemon's `record` command.
+
+Rulings the owner has not yet confirmed: the memory watchdog in place of refusing on an
+estimate; a complete sliced file survives a stop the service decides on, but not a
+caller's cancel; `delivery.outcome_unknown` after stop-following or 24 hours of
+staleness; a printer whose last print ended is free; a start command only on a report
+younger than 15 s; Orca patches are the owner's decision and the upgrade command stops
+at one.
