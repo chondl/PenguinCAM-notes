@@ -461,3 +461,18 @@ part on a face; learn from Orca Slicer's layout and preview views); and for the 
   the "Lay them the best way" button, which never appeared on any plate it built.
   Coordinator loaded the page through the viewer: renders, no console errors. Mockup
   committed. **Mockup strand closed until the owner's feedback.**
+- Fri 11-20 00:42 PT: delivery hardening review 5 returned: 7 defects, **all rated low**
+  ([results/delivery-hardening-review-5.md](results/delivery-hardening-review-5.md),
+  section "Open"). All six of review 4's items fixed in the main case. 3,150 start
+  campaigns: no file started twice, no start command on a bad picture or onto a held
+  printer, no job that never ended. Fast suite 40 of 40 (1,064 tests, about 4 s),
+  simulator suite 10 of 10, upstream check 5 of 5. All 13 regressions put back were
+  caught, but 7 escaped the property tests and were caught only by aimed unit tests.
+  Low items 1 and 2 become serious if the real H2S shows a left-over end for over 5
+  minutes or takes over 5 minutes to show a print; the review's section 5 gives a safer
+  rule that costs one confirmation by a person.
+- Fri 11-20 00:42 PT: committed as `5d38566`.
+- Ruling: items 1 and 2 are left as they are, for the owner and the hardware session;
+  items 3 to 7 and stronger property tests go to one last fix round.
+- Fri 11-20 00:42 PT: delivery hardening fix 5 dispatched (Opus), result
+  `results/delivery-hardening-fix-5.md`. Review 6 follows and is the last.
