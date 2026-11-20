@@ -160,3 +160,16 @@ the coordinator saves the substance to `results/<component>-port.md`.
   `c2c9a3c`. **Slice port phase closed after 2 review rounds.**
 - Thu 11-19 18:38 PT: slice hardening dispatched (Opus), result `results/slice-hardening.md`. It is
   the only strand allowed to run real Orca.
+- Thu 11-19 19:27 PT: slice hardening returned, DONE_WITH_CONCERNS
+  ([results/slice-hardening.md](results/slice-hardening.md)); unverified. Claims: 664 fast
+  tests in about 4 s, 20 of 20 runs, 100% branch coverage, 23 real-Orca tests in 8.9 s;
+  Orca's `--pipe` option gives real stage and percentage progress; crash, memory kill,
+  outside kill, cancel and timeout are separate error reports; the -100 sentence follows
+  Orca's real reason; memory cap replaces the plate triangle cap (900 MB default, 8
+  reference plates measured, highest peak 915 MB); `make upgrade-orca` went to 2.5.1 and
+  back. Concerns for the owner: Orca 2.5.x packs the Bambu profiles in a file the catalog
+  script cannot read, so 2.4.2 stays pinned; the memory model over-estimates smooth
+  organic parts about 2 times; a "floating regions" refusal is only in Orca's debug log
+  (a proposed Orca patch is written, not made); self-intersecting parts are not detected.
+- Thu 11-19 19:27 PT: slice hardening review round 1 dispatched (Fable), result
+  `results/slice-hardening-review-1.md`.
