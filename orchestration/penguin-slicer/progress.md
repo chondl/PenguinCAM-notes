@@ -226,3 +226,14 @@ the coordinator saves the substance to `results/<component>-port.md`.
   applying it, since an Orca patch needs a source build.
 - Thu 11-19 20:13 PT: slice hardening review round 2 dispatched (Fable), result
   `results/slice-hardening-review-2.md`.
+- Thu 11-19 20:23 PT: delivery hardening fix 1 returned: all 11 defects reported fixed, plus a race in
+  the simulator (two threads on one TLS socket lost a status document in 2 of 13 runs)
+  ([results/delivery-hardening-fix-1.md](results/delivery-hardening-fix-1.md));
+  unverified. Silence no longer ends a job: the 6-hour rule and `delivery.job_expired`
+  are gone, the relay's 15-minute deadline applies only before the start gate. `detail`
+  capped at 2,000 characters; an 8 MB upload peaks under 2 MB. TLS 1.3 fixed with the
+  library's `unwrap` option, no patch. 880 fast tests in 3.7 s, 20 of 20 runs; simulator
+  suite 9 to 11 s. Upgrade round trip to 2.6.5 and back recorded in the guide.
+- Thu 11-19 20:23 PT: delivery hardening review round 2 dispatched (Fable), result
+  `results/delivery-hardening-review-2.md`. Asked to probe the overshoot: jobs that can
+  now never end.
