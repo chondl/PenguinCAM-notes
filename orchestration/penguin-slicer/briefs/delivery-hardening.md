@@ -81,26 +81,29 @@ answered wrongly at any moment.
    The simulated printer runs in its own small suite (`make test-sim`), kept fast and
    deterministic; the fast suite uses injected transports with no sockets.
 
-9. **The daemon runs on Windows.** Added by the owner Thu 11-19 18:25 PT: the first real
-   deployment for testing will be a Windows computer that sits on the printer's network
-   and is always on. The Raspberry Pi stays supported. So:
-   - nothing Unix-only at import or on any path the daemon takes on Windows (the port
-     imports `pwd` in its entry point; look for `os.geteuid`, `fcntl`, signals Windows
-     lacks, `/etc` and `/var/tmp` paths, file modes, `os.rename` over an existing file,
-     file locking, and names Windows forbids in the files it downloads);
-   - configuration, state and downloads live in the platform's proper per-machine places,
+9. **The daemon is a plain Python program that runs anywhere Python does.** Set by the
+   owner Thu 11-19 18:30 PT. The first real use is testing, most likely on a Windows
+   computer that sits on the printer's network and is always on. For this version:
+   - it presupposes Python and is started by hand as a Python program (`python -m ...` or
+     `uv run ...`), on Windows, macOS or Linux, with the same commands on each;
+   - nothing Unix-only at import or on any path it takes (the port imports `pwd` in its
+     entry point; look also for `os.geteuid`, `fcntl`, signals Windows lacks, `/etc` and
+     `/var/tmp` paths, `os.rename` over an existing file, and file names Windows forbids
+     in what it downloads);
+   - its configuration, state and downloads live in one directory the person running it
+     chooses (a command-line option, with a sensible default under the user's home),
      chosen in one module;
-   - a Windows install and run path in the guide: how to install with `uv` or plain
-     Python, how to pair, how to keep it running across reboots (a scheduled task at
-     start-up, or a service; pick the simplest that survives a reboot and say how to see
-     its log), and how to run the recording command there;
-   - the secrets the daemon keeps (its token, the printer's access code) are readable only
-     by the account that runs it, on both platforms; say how that is done on Windows;
-   - no Windows machine is available here, so prove what can be proven: the fast suite
-     runs every platform-dependent choice with the platform injected (both branches
-     tested on Linux), a test imports the whole daemon with the Unix-only modules made
-     unimportable, and the result file ends with a short checklist of what the owner must
-     confirm on the real Windows machine.
+   - **out of scope, do not build:** installers for any operating system, running as a
+     service or at start-up, and operating-system protection of the stored token and
+     access code. The ported `install.sh` and its service unit are left exactly as they
+     are, neither extended nor tested further; the guide says they are not maintained in
+     this version. Secrets still never appear in logs or error reports;
+   - the guide's "Running the daemon" section is short: install Python, get the code,
+     three commands to pair and run, and the recording command;
+   - no Windows machine is available here, so the fast suite tests every
+     platform-dependent choice with the platform injected, a test imports the whole
+     daemon with the Unix-only modules made unimportable, and the result file ends with
+     a short checklist for the owner to confirm on the Windows computer.
 
 ## Hostile cases: each needs a test that fails if the handling is removed
 

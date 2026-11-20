@@ -91,3 +91,6 @@ the coordinator saves the substance to `results/<component>-port.md`.
 - Thu 11-19 18:25 PT: owner said the daemon will likely be deployed for testing on a
   Windows computer on the printer's network, up all the time. Added as requirement 9 of
   the delivery hardening brief; the Raspberry Pi stays supported.
+- Thu 11-19 18:30 PT: owner narrowed it: for this version the daemon is a plain Python
+  program run by hand on any operating system. No installers, no service setup, no
+  operating-system secret protection. Requirement 9 rewritten.
