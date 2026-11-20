@@ -502,3 +502,10 @@ part on a face; learn from Orca Slicer's layout and preview views); and for the 
 - Fri 11-20 02:21 PT: committed as `9989a12`. **Printer delivery closed after 6 review rounds.** Not done,
   left for the owner: the missing test, moving the property campaigns out of the fast
   suite to bring it back to about 3.5 s, and the decision on items 1 and 2.
+- Fri 11-20 02:30 PT: the session summary
+  ([handoffs/2026-11-20-penguin-slicer-session-summary.md](../../handoffs/2026-11-20-penguin-slicer-session-summary.md))
+  passed its two review rounds: 39 findings applied by a writer; the second review found
+  12, of which 2 would mislead (the hold stated as unconditional; the printer session
+  not runnable from the summary alone). The coordinator corrected those two by hand, not
+  re-reviewed; ten polish findings left. Committed, pushed and opened for the owner.
+  **The second run is finished; nothing is running;** status cron cancelled.
