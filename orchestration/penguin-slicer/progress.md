@@ -289,3 +289,18 @@ the coordinator saves the substance to `results/<component>-port.md`.
   "success wins" covers only stops the service decides on.
 - Thu 11-19 21:07 PT: slice hardening review round 3 dispatched (Fable), result
   `results/slice-hardening-review-3.md`.
+- Thu 11-19 21:21 PT: slice hardening review 3 returned: FIX, 2 defects where a run's end is decided
+  and 5 minor ([results/slice-hardening-review-3.md](results/slice-hardening-review-3.md)).
+  40 of 40 runs, 781 tests, about 4 s; 100% branch coverage; 7 of 8 hang regressions
+  caught and none hung; every way of arriving at `POST /slices` left a log line; the
+  reported memory peak was true every time. Defects: a stop landing after Orca wrote the
+  complete file but before it exits discards the file (forced 6 of 6 with real Orca, a
+  window of about 30 ms, not seen unforced in 12 runs); an outside kill just before a
+  stop is reported as the stop. Minor: a raising log sink blocks the queue; no limit on
+  a part name's length; one wrong warning; a possible deadlock in the interrupt path.
+- Ruling: a complete, valid sliced file is never discarded by a stop the service decides
+  on, even when the stop landed before Orca exited.
+- Ruling: an abandoned job that finishes as the sweeper cancels it ends `cancelled` and
+  its file is discarded; intended.
+- Thu 11-19 21:21 PT: slice hardening fix 3 dispatched (Opus), result
+  `results/slice-hardening-fix-3.md`. The review after it is the fourth and last.
