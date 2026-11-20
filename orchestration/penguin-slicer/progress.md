@@ -269,3 +269,12 @@ the coordinator saves the substance to `results/<component>-port.md`.
   that the print failed.
 - Thu 11-19 20:44 PT: delivery hardening fix 2 dispatched (Opus), result
   `results/delivery-hardening-fix-2.md`.
+- Thu 11-19 21:07 PT: delivery hardening fix 2 returned: all 6 defects reported fixed, plus two of the
+  same kind ([results/delivery-hardening-fix-2.md](results/delivery-hardening-fix-2.md));
+  unverified. One table (`PRINTER_VALUES`) classifies every printer value; new non-final
+  stage `waiting_for_person`; stop-following route and the 24-hour rule end a stale job
+  as `delivery.outcome_unknown`; request bodies over 64 kB refused; every test wait
+  bounded. Behaviour change to check: an unknown printer state now refuses a new send as
+  busy. Fast suite 20 of 20 in 3 to 4 s; simulator suite 26 tests; upstream check 44.
+- Thu 11-19 21:07 PT: delivery hardening review round 3 dispatched (Fable), result
+  `results/delivery-hardening-review-3.md`.
