@@ -94,3 +94,27 @@ the coordinator saves the substance to `results/<component>-port.md`.
 - Thu 11-19 18:30 PT: owner narrowed it: for this version the daemon is a plain Python
   program run by hand on any operating system. No installers, no service setup, no
   operating-system secret protection. Requirement 9 rewritten.
+- Thu 11-19 18:36 PT: mockup Fable round 1 returned. It fixed Send to Printer sending at
+  once from the menu (now a confirmation), the Layout step's tiny parts (zooms to the
+  copies), double-click a face to lay a copy down, and rewrote `DECISIONS.md` with a
+  ten-item "Please react to these" list. Left open for round 2: grabbing a part by its
+  hole, a laid-flat long part finding no free spot, tall error cards, the Assembly page.
+- Thu 11-19 18:38 PT: mockup Fable round 2 dispatched.
+- Thu 11-19 18:45 PT: delivery port review 1 returned: FIX, 12 defects
+  ([results/delivery-port-review-1.md](results/delivery-port-review-1.md)). Flakes and
+  speed clean (20 of 20 runs, 475 tests in about 0.6 s), coverage 97 to 100% per module,
+  8 of 9 hand mutations caught. Worst: an accepted send can lose its sliced file (a race
+  new in the port, 3 of 150 with real threads); a non-string `error` in an
+  acknowledgement makes a team's status route answer 500 for ten minutes.
+- Ruling: in the port phase, inherited faults are fixed only when small and safe;
+  otherwise pinned as `known_fault` for hardening.
+- Thu 11-19 18:47 PT: delivery port fix 1 dispatched (Opus), result
+  `results/delivery-port-fix-1.md`.
+- Thu 11-19 18:52 PT: slice port review 1 returned: FIX, 14 defects (7 made by the port,
+  6 carried over, 1 both) ([results/slice-port-review-1.md](results/slice-port-review-1.md)).
+  Verified: the real-Orca suite really slices (fast because the parts are tiny), 30 of 30
+  runs pass, 100% branch coverage with 10 of 14 hand mutations caught. Worst: a good
+  sliced file thrown away when `result.json` has an unexpected shape; success reported
+  with a folder as the sliced file's path; the Orca version stated in six files.
+- Thu 11-19 18:54 PT: slice port fix 1 dispatched (Opus), result
+  `results/slice-port-fix-1.md`.
