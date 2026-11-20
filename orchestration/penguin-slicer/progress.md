@@ -127,3 +127,7 @@ the coordinator saves the substance to `results/<component>-port.md`.
   ([results/delivery-port-fix-1.md](results/delivery-port-fix-1.md)); unverified.
 - Thu 11-19 18:22 PT: delivery port review round 2 dispatched (Fable), result
   `results/delivery-port-review-2.md`.
+- Thu 11-19 18:25 PT: mockup Fable round 2 returned: ready for the owner, a third round
+  judged not worth it. Coordinator loaded it through the viewer: renders, no console
+  errors. Committed and opened for the owner. Mockup strand closed until the owner's
+  feedback; guard cron deleted.

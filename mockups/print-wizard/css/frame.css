@@ -1,0 +1,76 @@
+/* The page around the panel: the scenario strip (mockup controls) and a stand-in Onshape
+   tab laid out like testbed/host/local.html. Plain on purpose: only the panel is designed. */
+:root {
+  --f-top: #ffffff; --f-line: #d4d7dc; --f-bg: #f3f4f6; --f-ink: #1f2328; --f-muted: #6a737d;
+  --f-accent: #0d6ac1; --f-select: #ffd75e; --f-hover: #e8f0fa;
+  --panel-width: 320px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--f-bg); color: var(--f-ink);
+             font: 13px/18px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+button, select { font: inherit; }
+
+/* ---- scenario strip ---- */
+#scenario { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 6px 10px;
+            background: repeating-linear-gradient(135deg, #fff3b0 0 14px, #ffe98a 14px 28px);
+            border-bottom: 2px solid #c9a100; color: #3d3000; font-size: 12px; }
+#scenario .sc-badge { font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px;
+                      background: #3d3000; color: #ffe98a; padding: 2px 8px; border-radius: 3px; }
+#scenario label { display: inline-flex; align-items: center; gap: 5px; }
+#scenario select { font-size: 12px; padding: 2px 4px; }
+#scenario button { font-size: 12px; padding: 2px 10px; cursor: pointer; }
+#sc-armed { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+#sc-armed .armed { background: #3d3000; color: #fff; border-radius: 10px; padding: 1px 4px 1px 9px; font-size: 11px; }
+#sc-armed .armed button { background: none; border: 0; color: #ffe98a; padding: 0 4px; cursor: pointer; }
+#sc-armed .none { color: #6d5d00; font-style: italic; }
+#scenario .sc-how { flex-basis: 100%; margin: 0; background: rgba(255, 255, 255, 0.72); border: 1px solid #c9a100; border-radius: 4px;
+                    padding: 4px 8px; line-height: 17px; }
+#scenario .sc-how[hidden] { display: none; }
+#scenario .sc-how button { margin-left: 6px; padding: 0 8px; }
+
+/* ---- the stand-in Onshape tab ---- */
+#frame { flex: 1; min-height: 0; display: grid; grid-template-rows: 40px 36px 1fr 30px; }
+#frame[hidden] { display: none; }
+#os-top { display: flex; align-items: center; gap: 12px; padding: 0 12px; background: var(--f-top); border-bottom: 1px solid var(--f-line); }
+#os-logo { font-weight: 700; color: var(--f-accent); letter-spacing: 0.02em; }
+#os-doc { font-weight: 600; }
+#os-badge { padding: 0 8px; border-radius: 9px; background: #fff3cd; color: #7a5a00; font-size: 11px; line-height: 18px; }
+#os-top .spacer { flex: 1; }
+#os-user { color: var(--f-muted); }
+#os-toolbar { display: flex; align-items: center; gap: 6px; padding: 0 8px; background: var(--f-top); border-bottom: 1px solid var(--f-line); }
+#os-toolbar .tool { height: 26px; line-height: 24px; padding: 0 10px; border: 1px solid var(--f-line); border-radius: 3px; background: #fff; color: #9aa3ad; }
+#os-toolbar .hint { color: var(--f-muted); margin-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#os-main { display: flex; min-height: 0; }
+#os-left { width: 230px; flex: none; background: #fff; border-right: 1px solid var(--f-line); display: flex; flex-direction: column; min-height: 0; }
+.list-head { padding: 8px 10px; font-weight: 600; border-bottom: 1px solid var(--f-line); display: flex; justify-content: space-between; }
+.list-head .count { color: var(--f-muted); font-weight: 400; }
+#os-features { padding: 4px 0; border-bottom: 1px solid var(--f-line); color: var(--f-muted); max-height: 30%; overflow: auto; }
+#os-features div { padding: 2px 12px; }
+#os-parts { list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; flex: 1; user-select: none; }
+#os-parts li { display: flex; align-items: center; gap: 8px; padding: 3px 12px; cursor: pointer; }
+#os-parts li:hover { background: var(--f-hover); }
+#os-parts li.selected { background: var(--f-select); }
+#os-parts li .icon { width: 12px; height: 12px; border: 1px solid #8a96a3; border-radius: 2px; background: linear-gradient(135deg, #c9d3dd, #8a96a3); flex: none; }
+#os-parts li .icon.std { border-radius: 6px; background: linear-gradient(135deg, #e3d9c3, #a39373); }
+#os-parts li .n { margin-left: auto; color: var(--f-muted); font-size: 11px; }
+#os-parts li.std { color: var(--f-muted); cursor: default; }
+#os-graphics { flex: 1; min-width: 0; position: relative; background: linear-gradient(#fdfdfe, #dfe3e8); }
+#os-graphics canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#os-graphics-note { position: absolute; left: 12px; top: 10px; color: var(--f-muted); font-size: 12px; pointer-events: none; z-index: 1; }
+#os-right { width: var(--panel-width); flex: none; background: #fff; border-left: 1px solid var(--f-line); display: flex; flex-direction: column; min-height: 0; }
+#os-right-head { height: 30px; flex: none; display: flex; align-items: center; padding: 0 10px; border-bottom: 1px solid var(--f-line); font-weight: 600; }
+#panel-slot { flex: 1; min-height: 0; position: relative; }
+#os-strip { width: 36px; flex: none; background: #fff; border-left: 1px solid var(--f-line); display: flex; flex-direction: column; align-items: center; padding-top: 6px; }
+#os-strip .app { width: 26px; height: 26px; border-radius: 4px; background: var(--f-accent); color: #fff; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+#os-tabs { display: flex; align-items: stretch; background: #e9ebee; border-top: 1px solid var(--f-line); }
+#os-tabs .tab { padding: 0 14px; display: flex; align-items: center; background: #fff; border-right: 1px solid var(--f-line); font-weight: 600; }
+
+/* ---- standalone: a plain browser page ---- */
+#standalone { flex: 1; min-height: 0; display: flex; flex-direction: column; background: #dfe3e8; }
+#standalone[hidden] { display: none; }
+#sa-bar { height: 34px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 12px; background: #eceff2; border-bottom: 1px solid var(--f-line); }
+#sa-bar .dots i { display: inline-block; width: 10px; height: 10px; border-radius: 5px; background: #c3c8ce; margin-right: 5px; }
+#sa-url { background: #fff; border: 1px solid var(--f-line); border-radius: 12px; padding: 2px 12px; color: var(--f-muted); flex: 0 1 420px; }
+#sa-page { flex: 1; min-height: 0; display: flex; justify-content: center; padding: 0; background: #0f1419; }
+#sa-slot { width: var(--panel-width); max-width: 100%; height: 100%; position: relative; border-left: 1px solid #30363d; border-right: 1px solid #30363d; }
