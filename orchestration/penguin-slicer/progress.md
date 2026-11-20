@@ -203,3 +203,16 @@ the coordinator saves the substance to `results/<component>-port.md`.
   warns. Refitting the model belongs with the choice of hosting.
 - Thu 11-19 19:42 PT: slice hardening fix 1 dispatched (Opus), result
   `results/slice-hardening-fix-1.md`.
+- Thu 11-19 19:50 PT: delivery hardening review 1 returned: FIX, 11 defects (2 serious, 3 medium, 6
+  low) ([results/delivery-hardening-review-1.md](results/delivery-hardening-review-1.md)).
+  Held: a file is started at most once under every fault sequence the reviewer built; the
+  deadlock fix is real; retries bounded; nothing Unix-only on a hand-run path; no secret
+  in any log or report; 20 of 20 runs, simulator suite and upstream check 10 of 10 each;
+  17 of 18 mutations caught. Serious: a print that is running is reported as finally
+  failed after 90 s of printer silence or 17 min of relay link loss, and never corrected;
+  an upload holds the whole file's text in memory and a failed upload sends megabytes of
+  `detail` into every status answer. Also: old status shown as fresh after a reconnect;
+  11 of 12 uploads lose their end under TLS 1.3 in the simulator (caught, none started;
+  the library's `unwrap` option fixes it).
+- Thu 11-19 19:50 PT: delivery hardening fix 1 dispatched (Opus), result
+  `results/delivery-hardening-fix-1.md`.
