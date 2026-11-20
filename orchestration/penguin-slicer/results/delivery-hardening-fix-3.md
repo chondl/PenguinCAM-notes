@@ -1,6 +1,6 @@
 # Fix: printer delivery, hardening phase, round 3
 
-Worked Thu 11-19, 21:35 to about 22:40 PT, on the uncommitted tree under
+Worked Thu 11-19, 21:35 to 22:10 PT, on the uncommitted tree under
 `/repos/popcornpenguins/penguin-slicer/delivery`, from
 [the third review](delivery-hardening-review-3.md) and the coordinator's rulings. All 8
 defects are fixed. Each fix has a test that fails without it: I checked that by mutating a
@@ -242,7 +242,16 @@ with no `delete`, and two plain `return`s on paths whose effect is asserted else
 
 ## The closing runs
 
-FIGURES
+Each run was pytest straight from the project's environment, under `timeout -s KILL` and
+`prlimit --as=3 GB` (`run_final.sh`). The per-run lines are in `final/summary.txt`.
+
+| Suite | Runs | Failures | Wall time per run |
+|---|---|---|---|
+| Fast suite: 986 tests, 147 subtests; `-n 2`, random order, seeds 4101 to 4140 | 40 | 0 | 2.95 s to 3.81 s, mean 3.22 s |
+| Simulated-printer suite (`-m simulator`): 31 tests | 10 | 0 | 13.42 s to 14.83 s, mean 14.09 s |
+| Upstream check (`-m "upstream or simulator"`): 49 tests | 5 | 0 | 13.85 s to 14.62 s, mean 14.15 s |
+
+The together run (`-m real_time`, 2 tests) also passes, in 1.5 s.
 
 ## For the owner's session at the H2S (added to the guide's checklist)
 

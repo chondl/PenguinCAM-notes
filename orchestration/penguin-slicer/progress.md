@@ -344,3 +344,15 @@ the coordinator saves the substance to `results/<component>-port.md`.
   17 kB with 25 warned parts; one rare zip damage reported as `slice.unexpected`; a
   reused output folder when `slice_plate` is called directly; the reported peak can
   include the service's own memory; a non-ASCII digit in the ceiling setting.
+- Thu 11-19 22:09 PT: delivery hardening fix 3 returned: all 8 defects reported fixed
+  ([results/delivery-hardening-fix-3.md](results/delivery-hardening-fix-3.md));
+  unverified. The main state decides; `delivery.printer_state_unrecognised` for an
+  unknown one; a start command only on a printer report younger than 15 s showing no
+  print; ended states are free; final reports kept 24 hours; `pytest-timeout` at 30 s
+  per test and bounded fake clocks (the two hanging regressions now fail in 10 to 13 s
+  under 100 MB). 986 fast tests, 40 of 40 runs (mean 3.22 s); simulator suite 10 of 10
+  (about 14 s); upstream check 5 of 5. Behaviour change to check: the port's reading
+  "idle with a heating stage is a print just starting" is gone.
+- Thu 11-19 22:09 PT: delivery hardening review round 4, the last, dispatched (Fable), result
+  `results/delivery-hardening-review-4.md`, to end with "Open at commit" and "For the
+  session at the real printer".
