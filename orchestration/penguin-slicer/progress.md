@@ -476,3 +476,16 @@ part on a face; learn from Orca Slicer's layout and preview views); and for the 
   items 3 to 7 and stronger property tests go to one last fix round.
 - Fri 11-20 00:42 PT: delivery hardening fix 5 dispatched (Opus), result
   `results/delivery-hardening-fix-5.md`. Review 6 follows and is the last.
+- Fri 11-20 00:45 PT: summary document drafted by a fork
+  (`handoffs/2026-11-20-penguin-slicer-session-summary.md`) and reviewed once (Fable): 39
+  findings, held for one correction pass after the last delivery round.
+- Fri 11-20 01:54 PT: delivery hardening fix 5 returned, DONE_WITH_CONCERNS
+  ([results/delivery-hardening-fix-5.md](results/delivery-hardening-fix-5.md));
+  unverified. Items 3 to 7 fixed; items 1 and 2 unchanged, with the guide's new
+  subsection "Two limits that wait for the real printer". The daemon keeps a record of
+  each sent start command (`start.json`) so the hold survives both halves restarting.
+  The property tests now catch 6 of the 7 regressions that escaped them. Fast suite 40
+  of 40 but slower: median 7.1 s, was about 4 s. One more defect of the same kind fixed
+  beside item 3 (the rebuilt hold double-counted), changing the hold rule's timing.
+- Fri 11-20 01:54 PT: delivery hardening review round 6, the last, dispatched (Fable), result
+  `results/delivery-hardening-review-6.md`.
