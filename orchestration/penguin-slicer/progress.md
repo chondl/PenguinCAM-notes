@@ -332,3 +332,15 @@ the coordinator saves the substance to `results/<component>-port.md`.
   of 40 runs (median 4.08 s), 100% branch coverage; real-Orca suite 32 of 32 in 20.9 s.
 - Thu 11-19 21:48 PT: slice hardening review round 4, the last, dispatched (Fable), result
   `results/slice-hardening-review-4.md`, to end with "Open at commit" for the owner.
+- Thu 11-19 22:06 PT: slice hardening review 4, the last, returned: fit to commit as hardened; 6
+  defects, all low ([results/slice-hardening-review-4.md](results/slice-hardening-review-4.md),
+  section "Open at commit"). No bad file delivered after a stop: every cut of a stand-in
+  archive and 3,400 cuts of a real one failed as the stop; of 150 real slices stopped at
+  random moments, 40 were delivered, each with G-code identical to a clean slice. Fast
+  suite 45 of 45 (858 tests), real-Orca suite 3 of 3, 100% branch coverage, 18 of 20
+  mutations caught. The owner's named cases all gave true sentences.
+- Thu 11-19 22:06 PT: slice hardening committed as `30401cf`. **Slice service done after 4 review
+  rounds.** Open at commit: no stop note on the command line; a summary header of 8 to
+  17 kB with 25 warned parts; one rare zip damage reported as `slice.unexpected`; a
+  reused output folder when `slice_plate` is called directly; the reported peak can
+  include the service's own memory; a non-ASCII digit in the ceiling setting.
