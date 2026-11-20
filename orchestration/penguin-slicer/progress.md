@@ -251,3 +251,21 @@ the coordinator saves the substance to `results/<component>-port.md`.
   logged and noted as over the ceiling.
 - Thu 11-19 20:35 PT: slice hardening fix 2 dispatched (Opus), result
   `results/slice-hardening-fix-2.md`.
+- Thu 11-19 20:44 PT: delivery hardening review 2 returned: FIX, 6 defects (1 serious, 2 medium, 3 low)
+  ([results/delivery-hardening-review-2.md](results/delivery-hardening-review-2.md)). The
+  silence rule holds with no second start: silences up to 48 h on either link and a
+  400-case random campaign. Fast suite 40 of 40, simulator suite 20 of 20, upstream
+  check 10 of 10; 12 of 14 mutations caught. Serious: a fault a person clears at the
+  printer (pause with an error set) ends the job `failed` while the print finishes.
+  Medium: an acknowledgement answered by a foreign 404 page holds the job slot for ever;
+  a job past the start gate can never be given up while silence lasts. Low: a start-path
+  regression hangs the suite; the relay stores a sync snapshot of any size; the property
+  test's outages miss the job's waits.
+- Ruling: only evidence that the print has ended ends a delivery job; a pause or a
+  clearable fault is a non-final "waiting for a person" stage.
+- Ruling (owner to confirm): past the start gate, a caller may stop following a stale job,
+  and the relay does so itself after 24 hours of continuous staleness; the record ends
+  with `delivery.outcome_unknown`, whose sentence says the outcome is unknown, never
+  that the print failed.
+- Thu 11-19 20:44 PT: delivery hardening fix 2 dispatched (Opus), result
+  `results/delivery-hardening-fix-2.md`.
