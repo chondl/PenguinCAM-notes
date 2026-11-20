@@ -323,3 +323,12 @@ the coordinator saves the substance to `results/<component>-port.md`.
   records are kept 24 hours. A hard per-test time limit comes from `pytest-timeout`.
 - Thu 11-19 21:30 PT: delivery hardening fix 3 dispatched (Opus), result
   `results/delivery-hardening-fix-3.md`. The review after it is the fourth and last.
+- Thu 11-19 21:48 PT: slice hardening fix 3 returned: all 7 findings handled
+  ([results/slice-hardening-fix-3.md](results/slice-hardening-fix-3.md)); unverified.
+  "Complete" is defined in one place (final name, zip directory intact, required entries,
+  every checksum); a complete file after a timeout or watchdog stop is delivered with a
+  `stop_note`; an outside kill before a stop is reported as what it was; part and profile
+  names capped at 200 characters; log failures swallowed and counted. 858 fast tests, 40
+  of 40 runs (median 4.08 s), 100% branch coverage; real-Orca suite 32 of 32 in 20.9 s.
+- Thu 11-19 21:48 PT: slice hardening review round 4, the last, dispatched (Fable), result
+  `results/slice-hardening-review-4.md`, to end with "Open at commit" for the owner.
