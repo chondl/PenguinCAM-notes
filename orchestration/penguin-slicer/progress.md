@@ -304,3 +304,22 @@ the coordinator saves the substance to `results/<component>-port.md`.
   its file is discarded; intended.
 - Thu 11-19 21:21 PT: slice hardening fix 3 dispatched (Opus), result
   `results/slice-hardening-fix-3.md`. The review after it is the fourth and last.
+- Thu 11-19 21:30 PT: delivery hardening review 3 returned: FIX, 8 defects; "fit to commit as work in
+  progress, not yet as hardened"
+  ([results/delivery-hardening-review-3.md](results/delivery-hardening-review-3.md)).
+  Holds: no file started twice (a 300-case campaign with stop-following and resends, 15
+  mutations all caught); silence ended nothing except by the 24-hour rule; fast suite 40
+  of 40 (median 3.87 s), simulator suite 20 of 20, upstream check 10 of 10. Defects: an
+  idle printer with an unknown stage code reads as printing and blocks every send for
+  ever; six tests can still hang (one regression grew to 2.1 GB); after stop-following a
+  second file is started while the first prints, if the printer is quiet; after a failed
+  print every send is refused while the failed state lingers; a slow poller gets
+  `job_unknown` in place of `outcome_unknown`. The reviewer's hanging regressions caused
+  2 out-of-memory kills in the container between about 21:14 and 21:19 PT.
+- Rulings: the printer's main state decides whether a print is going on, the stage code
+  only describes it; an unknown main state refuses a send with its own retryable error
+  report and never locks a caller in. A start command is sent only on a fresh report that
+  the printer is free. A printer whose last print ended, well or badly, is free. Final
+  records are kept 24 hours. A hard per-test time limit comes from `pytest-timeout`.
+- Thu 11-19 21:30 PT: delivery hardening fix 3 dispatched (Opus), result
+  `results/delivery-hardening-fix-3.md`. The review after it is the fourth and last.
