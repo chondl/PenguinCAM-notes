@@ -187,3 +187,19 @@ the coordinator saves the substance to `results/<component>-port.md`.
   mid-upload. Decided by the builder: a relay restart keeps only the secret key.
 - Thu 11-19 19:37 PT: delivery hardening review round 1 dispatched (Fable), result
   `results/delivery-hardening-review-1.md`.
+- Thu 11-19 19:42 PT: slice hardening review 1 returned: FIX, 14 defects
+  ([results/slice-hardening-review-1.md](results/slice-hardening-review-1.md)). Held under
+  real Orca: cancel, timeout and a killed service each left no Orca process and no files;
+  the progress fraction is always Orca's own. 100% branch coverage, 14 of 14 hand
+  mutations caught, real-Orca suite 23 of 23. Found: one flaky test (1 failure in 20
+  runs, a `/proc` read racing a process exit); the memory cap refuses a 100 mm solid cube
+  (estimated 1,158 MB, real peak 276 MB) and estimates low elsewhere; an outside SIGKILL
+  reported as out of memory; "No layers were detected" still gets a general sentence;
+  HTML answers for 404, 405 and two 500s on the HTTP face; a failed download in the
+  upgrade command leaves the pin moved.
+- Ruling (owner to confirm): the memory estimate is too rough to refuse on. The guard
+  becomes a watchdog that samples the running Orca's memory and stops it at the ceiling
+  (900 MB default) with a truthful `slice.out_of_memory`; the estimate only informs and
+  warns. Refitting the model belongs with the choice of hosting.
+- Thu 11-19 19:42 PT: slice hardening fix 1 dispatched (Opus), result
+  `results/slice-hardening-fix-1.md`.
