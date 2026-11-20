@@ -249,7 +249,7 @@ The measurements are in the
 ### 7.1 Port
 
 What comes over: the relay, the daemon, the way a daemon is paired with a team through its
-pairing code, the protocol by which the daemon fetches delivery jobs, and their tests. The daemon stays in Python in this plan (open decision 2 in section 10).
+pairing code, the protocol by which the daemon fetches delivery jobs, and their tests. The daemon stays in Python in this plan (decision 2 in section 10).
 
 The relay on the print branch reads a team's pairing code from the team configuration. As with the slice service, that dependency is cut: the relay is given the
 pairing code by whoever calls it.
@@ -317,7 +317,7 @@ up as the wizard's requirements. That document is the input to the next plan.
 | Daemon telemetry | Open decision 3. |
 | Returning to PenguinCAM | It follows a working whole. |
 | Choosing the hosting | It follows the memory measurements in section 6.2. |
-| Rebuilding the daemon as one executable, printer adapters for other brands, the preview image on the printer's screen, file names that say which part and when | Each is new design, recorded in the [first hardware test notes](../handoffs/2026-10-09-printer-relay-first-hardware-test.md). Open decision 2 covers the first. |
+| Rebuilding the daemon as one executable, printer adapters for other brands, the preview image on the printer's screen, file names that say which part and when | Each is new design, recorded in the [first hardware test notes](../handoffs/2026-10-09-printer-relay-first-hardware-test.md). Decision 2 covers the first. |
 | The Onshape test bed on the print branch (recorded and replayed Onshape sessions) | It serves the Onshape source and stays on the print branch until that is planned. |
 
 ## 10. Open decisions for the owner
@@ -325,12 +325,10 @@ up as the wizard's requirements. That document is the input to the next plan.
 1. **The repository's name, owner and visibility.** A proposal: `penguin-slicer`, under
    the owner's own account while it is being built, since the team's account is where
    reviewed work goes. The owner creates it and adds it to the workspace.
-2. **The daemon: port and harden the Python one, or rebuild it now.** On Fri 10-09 the
-   owner wanted the daemon rebuilt as a single executable in Go or Rust. This plan ports
-   the Python daemon and hardens it, because the faults found are in its behaviour, which
-   a rebuild would have to get right as well, and the simulated printer and the tests then
-   exist to check a rebuild against. The cost: some hardening is done in code that is
-   later replaced.
+2. **Decided Thu 11-19: the daemon stays in Python for now.** The owner: bring it up on
+   Python, get everything working, and port it later to a technology that makes one
+   lightweight executable, most likely Rust or Go. The simulated printer and the tests
+   built here are what that later port is checked against.
 3. **Daemon telemetry.** On Fri 10-09 the owner named this the most important lesson of
    the test: the daemon reports its own state to the server from the moment it starts, so
    a mentor's broken setup can be diagnosed remotely. Is it part of hardening printer

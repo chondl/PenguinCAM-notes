@@ -16,7 +16,7 @@ The plan is the
 - The owner named these robustness cases: bad STL files (the Eiffel tower failure), an
   empty file, out-of-memory in slicing; for printer delivery, intermittent, slow and
   recovering networks on both links and the printer's error codes.
-- **The mockup must be ready for the owner by Thu 11-19 21:30 PT.** Opus draft, then Fable
+- **The mockup must be ready for the owner by Thu 11-19 23:30 PT** (moved from 21:30 by the owner at 18:20). Opus draft, then Fable
   rounds, then open it.
 
 ## Strands
@@ -48,8 +48,8 @@ the coordinator saves the substance to `results/<component>-port.md`.
 
 ## Rulings
 
-- Ruling: the daemon stays in Python for hardening (plan's open decision 2 unanswered;
-  the plan's default).
+- Owner decided Thu 11-19 18:20 PT: the daemon stays in Python for now; a port to Rust or
+  Go comes later.
 - Ruling: daemon telemetry is left out of hardening (open decision 3 unanswered; the
   plan's default). Structured logs on both halves are in.
 - Ruling: the simulated printer is built from the one recorded status document and
@@ -81,3 +81,10 @@ the coordinator saves the substance to `results/<component>-port.md`.
   coverage, 8 real-Orca tests in 1.3 s; all unverified).
 - Thu 11-19 18:08 PT: slice port review round 1 dispatched (Fable), result
   `results/slice-port-review-1.md`.
+- Thu 11-19 18:12 PT: printer delivery port returned; its claims are in
+  [results/delivery-port.md](results/delivery-port.md) (475 fast tests in 0.75 s, 93%
+  branch coverage, 19 error codes; all unverified).
+- Thu 11-19 18:15 PT: delivery port review round 1 dispatched (Fable), result
+  `results/delivery-port-review-1.md`.
+- Thu 11-19 18:20 PT: owner moved the mockup deadline to 23:30 PT (guard cron now fires
+  about 23:00 PT) and decided the daemon stays in Python for now.
